@@ -1,0 +1,2 @@
+ALTER TABLE otp_sessions
+ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' AFTER max_attempts;

@@ -1,0 +1,144 @@
+# Integrations: default `dev` (and any profile without `real`) uses @Profile("!real") mock beans.
+# Activate Spring profile `real` only after outbound adapters (NADRA, T24, SMS, AML) are implemented;
+# until then, real beans throw UnsupportedOperationException.
+spring:
+  application:
+    name: cebos-backend
+  profiles:
+    active: dev
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+  datasource:
+    url: jdbc:mysql://localhost:3306/cebos?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+    username: ${CEBOS_DB_USER:cebos}
+    password: ${CEBOS_DB_PASSWORD:cebos}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  data:
+    redis:
+      host: ${CEBOS_REDIS_HOST:localhost}
+      port: ${CEBOS_REDIS_PORT:6379}
+      password: ${CEBOS_REDIS_PASSWORD:}
+      ssl:
+        enabled: ${CEBOS_REDIS_SSL:false}
+      timeout: 2000ms
+
+server:
+  port: 8080
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+    instances:
+      sms:
+        base-config: default
+      nadra:
+        base-config: default
+      aml:
+        base-config: default
+      t24:
+        base-config: default
+
+cebos:
+  mail:
+    dispatch-enabled: ${CEBOS_MAIL_DISPATCH_ENABLED:false}
+    from-address: "${CEBOS_MAIL_FROM:CEBOS <noreply@localhost>}"
+  password-reset:
+    token-validity-hours: 24
+    public-portal-base-url: ${CEBOS_PORTAL_PUBLIC_URL:http://localhost:5173}
+  storage:
+    upload-dir: ${CEBOS_UPLOAD_DIR:./data/uploads}
+  jwt:
+    issuer: cebos
+    access-token-minutes: 15
+    refresh-token-days: 7
+    secret: ${CEBOS_JWT_SECRET}
+  jobs:
+    otp-expiry:
+      enabled: true
+      cron: "*/30 * * * * *"
+    invite-expiry:
+      enabled: true
+      cron: "*/45 * * * * *"
+    uploaded-validation:
+      enabled: true
+      cron: "20 */1 * * * *"
+    uploaded-validation-batch-size: 100
+    invite-dispatch:
+      enabled: false
+      cron: "30 */2 * * * *"
+    invite-dispatch-batch-size: 50
+    t24-retry:
+      enabled: true
+      cron: "0 */2 * * * *"
+    sla-alert:
+      enabled: true
+      cron: "0 */5 * * * *"
+    sla-alert-days: 3
+    t24-retry-attempts-placeholder: 3
+    t24-retry-batch-size: 50
+  outbox:
+    enabled: true
+    poll-interval-ms: 5000
+  rate-limit:
+    enabled: true
+    mobile-login-per-minute: 30
+    mobile-refresh-per-minute: 60
+    mobile-otp-per-minute: 45
+    portal-login-per-minute: 30
+    portal-refresh-per-minute: 60
+    portal-forgot-password-per-minute: 10
+    portal-reset-password-per-minute: 20
+    admin-login-per-minute: 30
+    admin-refresh-per-minute: 60
+  otp:
+    length: ${CEBOS_OTP_LENGTH:6}
+    expiry-minutes: ${CEBOS_OTP_EXPIRY_MINUTES:5}
+    max-attempts: ${CEBOS_OTP_MAX_ATTEMPTS:3}
+    max-resends: ${CEBOS_OTP_MAX_RESENDS:3}
+    resend-window-minutes: ${CEBOS_OTP_RESEND_WINDOW_MINUTES:15}
+    echo-enabled: ${CEBOS_OTP_ECHO_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      enabled: true
+
+---
+# Local development profile (MySQL + optional Redis above).
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+cebos:
+  jwt:
+    # Dev-only default; use a strong secret via CEBOS_JWT_SECRET in any shared environment.
+    secret: ${CEBOS_JWT_SECRET:cebos-dev-jwt-secret-change-me-32chars!!}
+  mobile:
+    # Local E2E default; override CEBOS_MOBILE_DEV_SECRET in any shared environment.
+    dev-secret: ${CEBOS_MOBILE_DEV_SECRET:e2e-mobile-dev-secret}
+  otp:
+    # Local-dev only. Keep false in shared/prod-like environments.
+    echo-enabled: ${CEBOS_OTP_ECHO_ENABLED:true}
