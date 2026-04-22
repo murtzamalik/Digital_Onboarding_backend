@@ -5,6 +5,7 @@ import com.bank.cebos.dto.admin.CreateBankAdminUserRequest;
 import com.bank.cebos.entity.BankAdminUser;
 import com.bank.cebos.enums.BankAdminRole;
 import com.bank.cebos.repository.BankAdminUserRepository;
+import com.bank.cebos.service.auth.BankAdminLoginLockoutService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -20,16 +21,32 @@ public class AdminBankAdminUserService {
 
   private final BankAdminUserRepository bankAdminUserRepository;
   private final PasswordEncoder passwordEncoder;
+  private final BankAdminLoginLockoutService bankAdminLoginLockoutService;
 
   public AdminBankAdminUserService(
-      BankAdminUserRepository bankAdminUserRepository, PasswordEncoder passwordEncoder) {
+      BankAdminUserRepository bankAdminUserRepository,
+      PasswordEncoder passwordEncoder,
+      BankAdminLoginLockoutService bankAdminLoginLockoutService) {
     this.bankAdminUserRepository = bankAdminUserRepository;
     this.passwordEncoder = passwordEncoder;
+    this.bankAdminLoginLockoutService = bankAdminLoginLockoutService;
   }
 
   @Transactional(readOnly = true)
   public Page<BankAdminUserResponse> list(Pageable pageable) {
     return bankAdminUserRepository.findAllByOrderByEmailAsc(pageable).map(AdminBankAdminUserService::toDto);
+  }
+
+  @Transactional
+  public BankAdminUserResponse updatePassword(long id, String newPassword) {
+    BankAdminUser u =
+        bankAdminUserRepository
+            .findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    u.setPasswordHash(passwordEncoder.encode(newPassword));
+    BankAdminUser saved = bankAdminUserRepository.save(u);
+    bankAdminLoginLockoutService.clearOnSuccess(saved.getEmail());
+    return toDto(saved);
   }
 
   @Transactional

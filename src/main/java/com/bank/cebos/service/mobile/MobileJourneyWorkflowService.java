@@ -118,6 +118,13 @@ public class MobileJourneyWorkflowService {
         nadra.verified() ? OnboardingStatus.NADRA_VERIFIED : OnboardingStatus.NADRA_FAILED,
         changedBy(onboardingId),
         "Mobile: NADRA verification completed");
+    if (nadra.verified()) {
+      employeeOnboardingService.transition(
+          e,
+          OnboardingStatus.LIVENESS_PENDING,
+          changedBy(onboardingId),
+          "auto-advance after NADRA verification");
+    }
     return toResponse(e);
   }
 
@@ -137,6 +144,13 @@ public class MobileJourneyWorkflowService {
         passed ? OnboardingStatus.LIVENESS_PASSED : OnboardingStatus.LIVENESS_FAILED,
         changedBy(onboardingId),
         "Mobile: liveness submitted");
+    if (passed) {
+      employeeOnboardingService.transition(
+          e,
+          OnboardingStatus.FACE_MATCH_PENDING,
+          changedBy(onboardingId),
+          "auto-advance after liveness passed");
+    }
     return toResponse(e);
   }
 
@@ -155,6 +169,13 @@ public class MobileJourneyWorkflowService {
         passed ? OnboardingStatus.FACE_MATCHED : OnboardingStatus.FACE_MATCH_FAILED,
         changedBy(onboardingId),
         "Mobile: face match submitted");
+    if (passed) {
+      employeeOnboardingService.transition(
+          e,
+          OnboardingStatus.FINGERPRINT_PENDING,
+          changedBy(onboardingId),
+          "auto-advance after face matched");
+    }
     return toResponse(e);
   }
 
@@ -174,6 +195,13 @@ public class MobileJourneyWorkflowService {
         passed ? OnboardingStatus.FINGERPRINT_MATCHED : OnboardingStatus.FINGERPRINT_FAILED,
         changedBy(onboardingId),
         "Mobile: fingerprint submitted");
+    if (passed) {
+      employeeOnboardingService.transition(
+          e,
+          OnboardingStatus.QUIZ_PENDING,
+          changedBy(onboardingId),
+          "auto-advance after fingerprint matched");
+    }
     return toResponse(e);
   }
 
@@ -202,6 +230,10 @@ public class MobileJourneyWorkflowService {
         passed ? OnboardingStatus.QUIZ_PASSED : OnboardingStatus.QUIZ_FAILED,
         changedBy(onboardingId),
         "Mobile: quiz submitted");
+    if (passed) {
+      employeeOnboardingService.transition(
+          e, OnboardingStatus.FORM_PENDING, changedBy(onboardingId), "auto-advance after quiz passed");
+    }
     return toResponse(e);
   }
 

@@ -3,12 +3,14 @@ package com.bank.cebos.controller.portal;
 import com.bank.cebos.dto.portal.BatchUploadResponse;
 import com.bank.cebos.dto.portal.CorrectionUploadResponse;
 import com.bank.cebos.dto.portal.PortalBatchDetailResponse;
+import com.bank.cebos.dto.portal.PortalBatchInviteDispatchResponse;
 import com.bank.cebos.dto.portal.PortalBatchListItemResponse;
 import com.bank.cebos.entity.UploadBatch;
 import com.bank.cebos.repository.UploadBatchRepository;
 import com.bank.cebos.security.CebosUserDetails;
 import com.bank.cebos.service.batch.BatchIngestService;
 import com.bank.cebos.service.batch.CorrectionIngestService;
+import com.bank.cebos.service.invite.InviteDispatchService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
@@ -38,17 +40,24 @@ public class PortalBatchController {
       "hasRole('ADMIN') and @principalAccess.hasPrincipalKind(T(com.bank.cebos.enums.PrincipalKind).PORTAL)"
           + " and @principalAccess.portalUserOwnsUploadBatch(#batchRef)";
 
+  private static final String PORTAL_ADMIN_INVITE_DISPATCH_SECURITY =
+      "hasRole('ADMIN') and @principalAccess.hasPrincipalKind(T(com.bank.cebos.enums.PrincipalKind).PORTAL)"
+          + " and @principalAccess.portalUserOwnsUploadBatch(#batchRef)";
+
   private final UploadBatchRepository uploadBatchRepository;
   private final BatchIngestService batchIngestService;
   private final CorrectionIngestService correctionIngestService;
+  private final InviteDispatchService inviteDispatchService;
 
   public PortalBatchController(
       UploadBatchRepository uploadBatchRepository,
       BatchIngestService batchIngestService,
-      CorrectionIngestService correctionIngestService) {
+      CorrectionIngestService correctionIngestService,
+      InviteDispatchService inviteDispatchService) {
     this.uploadBatchRepository = uploadBatchRepository;
     this.batchIngestService = batchIngestService;
     this.correctionIngestService = correctionIngestService;
+    this.inviteDispatchService = inviteDispatchService;
   }
 
   @GetMapping
@@ -92,6 +101,24 @@ public class PortalBatchController {
     BatchUploadResponse body =
         batchIngestService.initiateUpload(file, corporateClientId, principal.id());
     return ResponseEntity.ok(body);
+  }
+
+  @PostMapping("/{batchRef}/invites/dispatch")
+  @PreAuthorize(PORTAL_ADMIN_INVITE_DISPATCH_SECURITY)
+  public ResponseEntity<PortalBatchInviteDispatchResponse> dispatchInvitesForBatch(
+      @AuthenticationPrincipal CebosUserDetails principal, @PathVariable("batchRef") String batchRef) {
+    Long clientId = principal.corporateClientId();
+    if (clientId == null) {
+      return ResponseEntity.badRequest().build();
+    }
+    try {
+      PortalBatchInviteDispatchResponse body =
+          inviteDispatchService.dispatchValidatedForOwnedBatch(
+              batchRef, clientId, "portalUser:" + principal.id());
+      return ResponseEntity.ok(body);
+    } catch (IllegalArgumentException ex) {
+      return ResponseEntity.notFound().build();
+    }
   }
 
   @PostMapping(

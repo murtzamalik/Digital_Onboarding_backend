@@ -27,6 +27,7 @@ public class BankAdminAuthService {
   private final JwtTokenService jwtTokenService;
   private final RefreshTokenHasher refreshTokenHasher;
   private final JwtProperties jwtProperties;
+  private final BankAdminLoginLockoutService bankAdminLoginLockoutService;
 
   public BankAdminAuthService(
       BankAdminUserRepository bankAdminUserRepository,
@@ -34,27 +35,36 @@ public class BankAdminAuthService {
       PasswordEncoder passwordEncoder,
       JwtTokenService jwtTokenService,
       RefreshTokenHasher refreshTokenHasher,
-      JwtProperties jwtProperties) {
+      JwtProperties jwtProperties,
+      BankAdminLoginLockoutService bankAdminLoginLockoutService) {
     this.bankAdminUserRepository = bankAdminUserRepository;
     this.authRefreshTokenRepository = authRefreshTokenRepository;
     this.passwordEncoder = passwordEncoder;
     this.jwtTokenService = jwtTokenService;
     this.refreshTokenHasher = refreshTokenHasher;
     this.jwtProperties = jwtProperties;
+    this.bankAdminLoginLockoutService = bankAdminLoginLockoutService;
   }
 
   @Transactional
   public TokenResponse login(LoginRequest request) {
+    String email = request.email().trim();
+    if (bankAdminLoginLockoutService.isLocked(email)) {
+      throw new BadCredentialsException("Invalid credentials");
+    }
     BankAdminUser user =
         bankAdminUserRepository
-            .findByEmailIgnoreCase(request.email())
+            .findByEmailIgnoreCase(email)
             .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
     if (!STATUS_ACTIVE.equals(user.getStatus())) {
+      bankAdminLoginLockoutService.recordFailure(user.getEmail());
       throw new BadCredentialsException("Invalid credentials");
     }
     if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+      bankAdminLoginLockoutService.recordFailure(user.getEmail());
       throw new BadCredentialsException("Invalid credentials");
     }
+    bankAdminLoginLockoutService.clearOnSuccess(user.getEmail());
     return issueTokens(user);
   }
 
