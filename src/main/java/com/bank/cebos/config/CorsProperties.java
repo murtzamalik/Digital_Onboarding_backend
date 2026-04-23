@@ -12,7 +12,11 @@ public class CorsProperties {
    * deploy hosts.
    */
   private List<String> allowedOriginPatterns =
-      List.of("http://localhost:*", "http://127.0.0.1:*", "http://46.224.146.158:*");
+      List.of(
+          "http://localhost:*",
+          "http://127.0.0.1:*",
+          "http://46.224.146.158:*",
+          "https://46.224.146.158:*");
 
   public List<String> getAllowedOriginPatterns() {
     return allowedOriginPatterns;
