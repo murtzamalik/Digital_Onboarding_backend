@@ -6,6 +6,9 @@ import com.bank.cebos.dto.mobile.FingerprintSubmitRequest;
 import com.bank.cebos.dto.mobile.FormSchemaResponse;
 import com.bank.cebos.dto.mobile.FormSubmitRequest;
 import com.bank.cebos.dto.mobile.LivenessSubmitRequest;
+import com.bank.cebos.dto.mobile.MpinSetupRequest;
+import com.bank.cebos.dto.mobile.MpinSetupResponse;
+import com.bank.cebos.dto.mobile.MobileProfileResponse;
 import com.bank.cebos.dto.mobile.MobileJourneyStatusResponse;
 import com.bank.cebos.dto.mobile.MobilePolicyResponse;
 import com.bank.cebos.dto.mobile.QuizSubmitRequest;
@@ -57,6 +60,13 @@ public class MobileJourneyController {
     return ResponseEntity.ok(mobileJourneyWorkflowService.status(requireMobileId(principal)));
   }
 
+  @GetMapping("/profile")
+  @PreAuthorize(MOBILE_SECURITY)
+  public ResponseEntity<MobileProfileResponse> getProfile(
+      @AuthenticationPrincipal CebosUserDetails principal) {
+    return ResponseEntity.ok(mobileJourneyWorkflowService.getProfile(requireMobileId(principal)));
+  }
+
   @PostMapping("/kyc/cnic/front")
   @PreAuthorize(MOBILE_SECURITY)
   public ResponseEntity<MobileJourneyStatusResponse> cnicFront(
@@ -104,7 +114,7 @@ public class MobileJourneyController {
   @PreAuthorize(MOBILE_SECURITY)
   public ResponseEntity<QuizTemplateResponse> quiz(
       @AuthenticationPrincipal CebosUserDetails principal) {
-    return ResponseEntity.ok(mobileJourneyWorkflowService.quizTemplate(requireMobileId(principal)));
+    return ResponseEntity.ok(mobileJourneyWorkflowService.getQuiz(requireMobileId(principal)));
   }
 
   @PostMapping("/quiz/submit")
@@ -134,6 +144,13 @@ public class MobileJourneyController {
       @AuthenticationPrincipal CebosUserDetails principal,
       @Valid @RequestBody ReviewSubmitRequest request) {
     return ResponseEntity.ok(mobileJourneyWorkflowService.submitReview(requireMobileId(principal), request));
+  }
+
+  @PostMapping("/mpin/setup")
+  @PreAuthorize(MOBILE_SECURITY)
+  public ResponseEntity<MpinSetupResponse> setupMpin(
+      @AuthenticationPrincipal CebosUserDetails principal, @Valid @RequestBody MpinSetupRequest request) {
+    return ResponseEntity.ok(mobileJourneyWorkflowService.setupMpin(requireMobileId(principal), request));
   }
 
   private static long requireMobileId(CebosUserDetails principal) {

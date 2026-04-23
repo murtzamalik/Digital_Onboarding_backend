@@ -23,6 +23,7 @@ import com.bank.cebos.integration.T24Integration;
 import com.bank.cebos.integration.model.AmlScreeningResult;
 import com.bank.cebos.integration.model.NadraVerificationResult;
 import com.bank.cebos.integration.model.T24AccountOpenResult;
+import com.bank.cebos.repository.CorporateClientRepository;
 import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.service.config.RuntimeConfigService;
 import com.bank.cebos.service.onboarding.EmployeeOnboardingService;
@@ -42,6 +43,7 @@ class MobileJourneyWorkflowServiceTest {
 
   @Mock private EmployeeOnboardingService employeeOnboardingService;
   @Mock private EmployeeOnboardingRepository employeeOnboardingRepository;
+  @Mock private CorporateClientRepository corporateClientRepository;
   @Mock private RuntimeConfigService runtimeConfigService;
   @Mock private NadraIntegration nadraIntegration;
   @Mock private AmlIntegration amlIntegration;
@@ -55,6 +57,7 @@ class MobileJourneyWorkflowServiceTest {
         new MobileJourneyWorkflowService(
             employeeOnboardingService,
             employeeOnboardingRepository,
+            corporateClientRepository,
             runtimeConfigService,
             nadraIntegration,
             amlIntegration,
@@ -154,8 +157,10 @@ class MobileJourneyWorkflowServiceTest {
     when(runtimeConfigService.getString(eq("mobile.quiz.answer_key_json"), any()))
         .thenReturn("{\"Q1\":\"A\",\"Q2\":\"B\",\"Q3\":\"C\"}");
 
-    service.submitCnicFront(20L, new CnicCaptureRequest("mobile://front.jpg"));
-    service.submitCnicBack(20L, new CnicCaptureRequest("mobile://back.jpg"));
+    service.submitCnicFront(
+        20L, new CnicCaptureRequest("mobile://front.jpg", null, null, null, null, null, null, null, null, null));
+    service.submitCnicBack(
+        20L, new CnicCaptureRequest("mobile://back.jpg", null, null, null, null, null, null, null, null, null));
     service.submitLiveness(
         20L, new LivenessSubmitRequest("L1", "MOBILE", new BigDecimal("0.91"), "PASSED"));
     service.submitFaceMatch(

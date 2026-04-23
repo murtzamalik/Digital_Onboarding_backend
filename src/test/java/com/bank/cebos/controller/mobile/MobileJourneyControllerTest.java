@@ -98,7 +98,10 @@ class MobileJourneyControllerTest {
             post("/api/v1/mobile/kyc/cnic/front")
                 .with(authentication(mobileAuth(77L)))
                 .contentType("application/json")
-                .content(objectMapper.writeValueAsString(new CnicCaptureRequest("mobile://front.jpg"))))
+                .content(
+                    objectMapper.writeValueAsString(
+                        new CnicCaptureRequest(
+                            "mobile://front.jpg", null, null, null, null, null, null, null, null, null))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("NADRA_PENDING"));
   }

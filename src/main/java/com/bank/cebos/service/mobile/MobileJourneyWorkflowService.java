@@ -7,7 +7,11 @@ import com.bank.cebos.dto.mobile.FormFieldResponse;
 import com.bank.cebos.dto.mobile.FormSchemaResponse;
 import com.bank.cebos.dto.mobile.FormSubmitRequest;
 import com.bank.cebos.dto.mobile.LivenessSubmitRequest;
+import com.bank.cebos.dto.mobile.MpinSetupRequest;
+import com.bank.cebos.dto.mobile.MpinSetupResponse;
+import com.bank.cebos.dto.mobile.MobileProfileResponse;
 import com.bank.cebos.dto.mobile.MobileJourneyStatusResponse;
+import com.bank.cebos.dto.mobile.QuizAnswerRequest;
 import com.bank.cebos.dto.mobile.QuizQuestionResponse;
 import com.bank.cebos.dto.mobile.QuizSubmitRequest;
 import com.bank.cebos.dto.mobile.QuizTemplateResponse;
@@ -23,18 +27,25 @@ import com.bank.cebos.integration.model.NadraVerificationResult;
 import com.bank.cebos.integration.model.T24AccountOpenCommand;
 import com.bank.cebos.integration.model.T24AccountOpenResult;
 import com.bank.cebos.repository.EmployeeOnboardingRepository;
+import com.bank.cebos.repository.CorporateClientRepository;
 import com.bank.cebos.service.config.RuntimeConfigService;
 import com.bank.cebos.service.onboarding.EmployeeOnboardingService;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -42,13 +53,26 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class MobileJourneyWorkflowService {
 
-  private static final String DEFAULT_QUIZ_TEMPLATE = "CEBOS-QZ-1";
-  private static final int QUIZ_MAX_SCORE = 3;
-  private static final int QUIZ_PASSING_SCORE = 2;
-  private static final TypeReference<Map<String, String>> STRING_MAP_TYPE = new TypeReference<>() {};
+  private static final Logger log = LoggerFactory.getLogger(MobileJourneyWorkflowService.class);
+  private static final String MOTHER_NAME_QUIZ_TEMPLATE_ID = "MOTHER_NAME_QUIZ";
+  private static final String MOTHER_NAME_QUESTION_ID = "Q_MOTHER_NAME";
+  private static final String MOTHER_NAME_QUESTION_TEXT = "What is your mother's name?";
+  private static final List<String> MOTHER_NAME_DECOY_POOL =
+      List.of(
+          "Fatima Bibi",
+          "Zainab Begum",
+          "Amina Khatoon",
+          "Nazia Parveen",
+          "Razia Sultana",
+          "Sadia Bano",
+          "Hina Malik",
+          "Rukhsana Akhtar",
+          "Shahida Naz",
+          "Mehnaz Begum");
 
   private final EmployeeOnboardingService employeeOnboardingService;
   private final EmployeeOnboardingRepository employeeOnboardingRepository;
+  private final CorporateClientRepository corporateClientRepository;
   private final RuntimeConfigService runtimeConfigService;
   private final NadraIntegration nadraIntegration;
   private final AmlIntegration amlIntegration;
@@ -58,6 +82,7 @@ public class MobileJourneyWorkflowService {
   public MobileJourneyWorkflowService(
       EmployeeOnboardingService employeeOnboardingService,
       EmployeeOnboardingRepository employeeOnboardingRepository,
+      CorporateClientRepository corporateClientRepository,
       RuntimeConfigService runtimeConfigService,
       NadraIntegration nadraIntegration,
       AmlIntegration amlIntegration,
@@ -65,6 +90,7 @@ public class MobileJourneyWorkflowService {
       ObjectMapper objectMapper) {
     this.employeeOnboardingService = employeeOnboardingService;
     this.employeeOnboardingRepository = employeeOnboardingRepository;
+    this.corporateClientRepository = corporateClientRepository;
     this.runtimeConfigService = runtimeConfigService;
     this.nadraIntegration = nadraIntegration;
     this.amlIntegration = amlIntegration;
@@ -75,6 +101,33 @@ public class MobileJourneyWorkflowService {
   @Transactional(readOnly = true)
   public MobileJourneyStatusResponse status(long onboardingId) {
     return toResponse(employeeOnboardingService.getRequiredById(onboardingId));
+  }
+
+  @Transactional(readOnly = true)
+  public MobileProfileResponse getProfile(long onboardingId) {
+    EmployeeOnboarding e = employeeOnboardingService.getRequiredById(onboardingId);
+    String corporateName =
+        corporateClientRepository
+            .findById(e.getCorporateClientId())
+            .map(corporateClient -> corporateClient.getLegalName())
+            .orElse("—");
+    return new MobileProfileResponse(
+        e.getId(),
+        e.getEmployeeRef(),
+        e.getStatus().name(),
+        e.getFullName(),
+        e.getFatherName(),
+        e.getCnic(),
+        e.getMobile(),
+        e.getGender(),
+        e.getDateOfBirth() != null ? e.getDateOfBirth().toString() : null,
+        e.getCnicIssueDate() != null ? e.getCnicIssueDate().toString() : null,
+        e.getCnicExpiryDate() != null ? e.getCnicExpiryDate().toString() : null,
+        e.getPresentAddressLine1(),
+        corporateName,
+        "Employee",
+        "Salary",
+        "Savings / Salary Account");
   }
 
   @Transactional
@@ -90,6 +143,29 @@ public class MobileJourneyWorkflowService {
           "Mobile: entering OCR stage from OTP verified");
     }
     e.setCnicFrontImagePath(request.imagePath().trim());
+    if (request.ocrFullName() != null && !request.ocrFullName().isBlank()) {
+      e.setFullName(request.ocrFullName().trim());
+    }
+    if (request.ocrFatherName() != null && !request.ocrFatherName().isBlank()) {
+      e.setFatherName(request.ocrFatherName().trim());
+    }
+    if (request.ocrMotherName() != null && !request.ocrMotherName().isBlank()) {
+      e.setMotherName(request.ocrMotherName().trim());
+    }
+    if (request.ocrGender() != null && !request.ocrGender().isBlank()) {
+      e.setGender(request.ocrGender().trim());
+    }
+    if (request.ocrAddress() != null && !request.ocrAddress().isBlank()) {
+      e.setPresentAddressLine1(request.ocrAddress().trim());
+    }
+    tryParseAndSetDate(request.ocrDob(), e::setDateOfBirth);
+    tryParseAndSetDate(request.ocrIssueDate(), e::setCnicIssueDate);
+    tryParseAndSetDate(request.ocrExpiryDate(), e::setCnicExpiryDate);
+    if ((e.getCnic() == null || e.getCnic().isBlank())
+        && request.ocrCnic() != null
+        && !request.ocrCnic().isBlank()) {
+      e.setCnic(request.ocrCnic().trim());
+    }
     e.setOcrStatus("CAPTURED_FRONT");
     e.setOcrJobId("OCR-" + e.getEmployeeRef() + "-" + Instant.now().toEpochMilli());
     employeeOnboardingRepository.save(e);
@@ -206,34 +282,72 @@ public class MobileJourneyWorkflowService {
   }
 
   @Transactional(readOnly = true)
-  public QuizTemplateResponse quizTemplate(long onboardingId) {
+  public QuizTemplateResponse getQuiz(long onboardingId) {
     EmployeeOnboarding e = employeeOnboardingService.getRequiredById(onboardingId);
     employeeOnboardingService.requireCurrentStatus(e, OnboardingStatus.QUIZ_PENDING);
-    return loadQuizTemplate();
+    String correctAnswer = requireMotherName(e);
+    List<String> decoys =
+        MOTHER_NAME_DECOY_POOL.stream()
+            .filter(d -> !d.equalsIgnoreCase(correctAnswer))
+            .collect(
+                java.util.stream.Collectors.collectingAndThen(
+                    java.util.stream.Collectors.toList(),
+                    list -> {
+                      java.util.Collections.shuffle(list);
+                      return list.subList(0, Math.min(2, list.size()));
+                    }));
+
+    List<String> options = new ArrayList<>(decoys);
+    options.add(correctAnswer);
+    java.util.Collections.shuffle(options);
+
+    QuizQuestionResponse question =
+        new QuizQuestionResponse(MOTHER_NAME_QUESTION_ID, MOTHER_NAME_QUESTION_TEXT, options);
+    return new QuizTemplateResponse(MOTHER_NAME_QUIZ_TEMPLATE_ID, 100, List.of(question));
+  }
+
+  @Transactional(readOnly = true)
+  public QuizTemplateResponse quizTemplate(long onboardingId) {
+    return getQuiz(onboardingId);
   }
 
   @Transactional
   public MobileJourneyStatusResponse submitQuiz(long onboardingId, QuizSubmitRequest request) {
     EmployeeOnboarding e = employeeOnboardingService.getRequiredById(onboardingId);
     employeeOnboardingService.requireCurrentStatus(e, OnboardingStatus.QUIZ_PENDING);
-    int score = scoreQuiz(request);
-    boolean passed = score >= QUIZ_PASSING_SCORE;
-    e.setQuizTemplateId(request.templateId().trim());
-    e.setQuizScore(score);
-    e.setQuizMaxScore(QUIZ_MAX_SCORE);
+    String correctAnswer = requireMotherName(e);
+    String submitted =
+        request.answers().stream()
+            .filter(a -> MOTHER_NAME_QUESTION_ID.equals(a.questionId()))
+            .map(QuizAnswerRequest::answer)
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Answer for Q_MOTHER_NAME is required"));
+
+    boolean passed = submitted.trim().equalsIgnoreCase(correctAnswer);
+    e.setQuizTemplateId(MOTHER_NAME_QUIZ_TEMPLATE_ID);
+    e.setQuizScore(passed ? 1 : 0);
+    e.setQuizMaxScore(1);
     e.setQuizPassed(passed);
-    e.setQuizAnswersJson(toJson(request.answers()));
+    e.setQuizAnswersJson(toJson(Map.of(MOTHER_NAME_QUESTION_ID, submitted)));
     e.setQuizCompletedAt(Instant.now());
     employeeOnboardingRepository.save(e);
-    employeeOnboardingService.transition(
-        e,
-        passed ? OnboardingStatus.QUIZ_PASSED : OnboardingStatus.QUIZ_FAILED,
-        changedBy(onboardingId),
-        "Mobile: quiz submitted");
-    if (passed) {
+
+    if (!passed) {
       employeeOnboardingService.transition(
-          e, OnboardingStatus.FORM_PENDING, changedBy(onboardingId), "auto-advance after quiz passed");
+          e,
+          OnboardingStatus.QUIZ_FAILED,
+          changedBy(onboardingId),
+          "Mobile: quiz failed - wrong mother name");
+      return toResponse(e);
     }
+
+    employeeOnboardingService.transition(
+        e, OnboardingStatus.QUIZ_PASSED, changedBy(onboardingId), "Mobile: quiz passed");
+    employeeOnboardingService.transition(
+        e, OnboardingStatus.FORM_PENDING, changedBy(onboardingId), "Mobile: auto-advance to FORM_PENDING");
     return toResponse(e);
   }
 
@@ -311,54 +425,32 @@ public class MobileJourneyWorkflowService {
     return toResponse(e);
   }
 
-  private int scoreQuiz(QuizSubmitRequest request) {
-    Map<String, String> answerKey = loadQuizAnswerKey();
-    int score = 0;
-    for (var answer : request.answers()) {
-      String q = answer.questionId().trim().toUpperCase(Locale.ROOT);
-      String a = answer.answer().trim().toUpperCase(Locale.ROOT);
-      String expectedContains = answerKey.get(q);
-      if (expectedContains != null && a.contains(expectedContains.toUpperCase(Locale.ROOT))) {
-        score++;
+  @Transactional
+  public MpinSetupResponse setupMpin(long onboardingId, MpinSetupRequest request) {
+    EmployeeOnboarding e = employeeOnboardingService.getRequiredById(onboardingId);
+    Set<OnboardingStatus> allowed = EnumSet.noneOf(OnboardingStatus.class);
+    for (OnboardingStatus status : OnboardingStatus.values()) {
+      if (status.name().contains("AML")
+          || status.name().contains("T24")
+          || status.name().contains("ACCOUNT")
+          || status.name().contains("COMPLETE")
+          || status.name().contains("ACTIVE")
+          || status.name().contains("REVIEW_SUBMITTED")) {
+        allowed.add(status);
       }
     }
-    return score;
-  }
-
-  private QuizTemplateResponse loadQuizTemplate() {
-    String fallback =
-        """
-        {
-          "templateId":"CEBOS-QZ-1",
-          "passingScorePercent":67,
-          "questions":[
-            {"questionId":"Q1","prompt":"What is your onboarding employee reference?","options":["Stored on invite","Always your CNIC","Always your mobile"]},
-            {"questionId":"Q2","prompt":"Which channel issues your invite?","options":["Corporate onboarding","ATM machine","Physical branch only"]},
-            {"questionId":"Q3","prompt":"When should OTP be shared?","options":["Never","With any caller","On social media"]}
-          ]
-        }
-        """;
-    String raw = runtimeConfigService.getString("mobile.quiz.template_json", fallback);
-    try {
-      return objectMapper.readValue(raw, QuizTemplateResponse.class);
-    } catch (JsonProcessingException ignored) {
-      return new QuizTemplateResponse(
-          DEFAULT_QUIZ_TEMPLATE,
-          67,
-          List.of(
-              new QuizQuestionResponse(
-                  "Q1",
-                  "What is your onboarding employee reference?",
-                  List.of("Stored on invite", "Always your CNIC", "Always your mobile")),
-              new QuizQuestionResponse(
-                  "Q2",
-                  "Which channel issues your invite?",
-                  List.of("Corporate onboarding", "ATM machine", "Physical branch only")),
-              new QuizQuestionResponse(
-                  "Q3",
-                  "When should OTP be shared?",
-                  List.of("Never", "With any caller", "On social media"))));
+    if (!allowed.contains(e.getStatus())) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "MPIN can only be set after review is submitted. Current status: " + e.getStatus());
     }
+    if (e.getMpinHash() != null && !e.getMpinHash().isBlank()) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "MPIN already set");
+    }
+    String hash = new BCryptPasswordEncoder().encode(request.mpin());
+    e.setMpinHash(hash);
+    employeeOnboardingRepository.save(e);
+    return new MpinSetupResponse(true, "MPIN set successfully");
   }
 
   private FormSchemaResponse loadFormSchema() {
@@ -390,15 +482,13 @@ public class MobileJourneyWorkflowService {
     }
   }
 
-  private Map<String, String> loadQuizAnswerKey() {
-    String fallback = "{\"Q1\":\"INVITE\",\"Q2\":\"CORPORATE\",\"Q3\":\"NEVER\"}";
-    String raw = runtimeConfigService.getString("mobile.quiz.answer_key_json", fallback);
-    try {
-      Map<String, String> parsed = objectMapper.readValue(raw, STRING_MAP_TYPE);
-      return parsed != null ? parsed : Collections.emptyMap();
-    } catch (JsonProcessingException ignored) {
-      return Map.of("Q1", "INVITE", "Q2", "CORPORATE", "Q3", "NEVER");
+  private static String requireMotherName(EmployeeOnboarding e) {
+    if (e.getMotherName() == null || e.getMotherName().isBlank()) {
+      throw new ResponseStatusException(
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          "Mother name not available - OCR may not have extracted it");
     }
+    return e.getMotherName().trim();
   }
 
   private static boolean isPositive(String result) {
@@ -408,6 +498,20 @@ public class MobileJourneyWorkflowService {
         || "MATCHED".equals(normalized)
         || "TRUE".equals(normalized)
         || "YES".equals(normalized);
+  }
+
+  private void tryParseAndSetDate(String raw, Consumer<LocalDate> setter) {
+    if (raw == null || raw.isBlank()) {
+      return;
+    }
+    for (String pattern : List.of("dd/MM/yyyy", "yyyy-MM-dd", "d/M/yyyy", "MM/dd/yyyy")) {
+      try {
+        setter.accept(LocalDate.parse(raw.trim(), DateTimeFormatter.ofPattern(pattern)));
+        return;
+      } catch (Exception ignored) {
+      }
+    }
+    log.warn("Could not parse date value '{}' - skipping", raw);
   }
 
   private String toJson(Object payload) {

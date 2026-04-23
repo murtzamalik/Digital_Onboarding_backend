@@ -16,6 +16,8 @@ public interface EmployeeOnboardingRepository extends JpaRepository<EmployeeOnbo
 
   Optional<EmployeeOnboarding> findByEmployeeRef(String employeeRef);
 
+  Optional<EmployeeOnboarding> findByMobileAndStatus(String mobile, OnboardingStatus status);
+
   List<EmployeeOnboarding> findByBatchId(Long batchId);
 
   List<EmployeeOnboarding> findByBatchIdAndStatus(Long batchId, OnboardingStatus status);

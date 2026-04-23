@@ -125,9 +125,11 @@ public class BatchIngestService {
       Integer ixCnic = col.get("CNIC");
       Integer ixMobile = col.get("MOBILE");
       Integer ixName = col.get("FULL_NAME");
+      Integer ixMotherName = col.get("MOTHER_NAME");
       if (ixCnic == null || ixMobile == null || ixName == null) {
         throw new ResponseStatusException(
-            HttpStatus.BAD_REQUEST, "Excel header row must include CNIC, MOBILE, FULL_NAME");
+            HttpStatus.BAD_REQUEST,
+            "Excel header row must include CNIC, MOBILE, FULL_NAME (MOTHER_NAME is optional)");
       }
 
       int last = sheet.getLastRowNum();
@@ -156,6 +158,12 @@ public class BatchIngestService {
         employee.setCnic(cnic);
         employee.setMobile(mobile);
         employee.setFullName(fullName);
+        if (ixMotherName != null) {
+          String motherName = cellString(row, ixMotherName).trim();
+          if (!motherName.isEmpty()) {
+            employee.setMotherName(motherName);
+          }
+        }
 
         stateMachineService.persistNewEmployeeOnboarding(
             employee,

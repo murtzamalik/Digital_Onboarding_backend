@@ -195,6 +195,9 @@ public class EmployeeOnboarding {
   @Column(name = "quiz_completed_at")
   private Instant quizCompletedAt;
 
+  @Column(name = "mpin_hash", length = 256)
+  private String mpinHash;
+
   @Lob
   @Column(name = "form_data_json")
   private String formDataJson;
@@ -708,6 +711,14 @@ public class EmployeeOnboarding {
 
   public void setQuizCompletedAt(Instant quizCompletedAt) {
     this.quizCompletedAt = quizCompletedAt;
+  }
+
+  public String getMpinHash() {
+    return mpinHash;
+  }
+
+  public void setMpinHash(String mpinHash) {
+    this.mpinHash = mpinHash;
   }
 
   public String getFormDataJson() {

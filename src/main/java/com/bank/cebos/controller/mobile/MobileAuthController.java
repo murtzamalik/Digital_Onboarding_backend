@@ -1,5 +1,7 @@
 package com.bank.cebos.controller.mobile;
 
+import com.bank.cebos.dto.auth.MobileInitRequest;
+import com.bank.cebos.dto.auth.MobileInitResponse;
 import com.bank.cebos.dto.auth.MobileLoginRequest;
 import com.bank.cebos.dto.auth.RefreshRequest;
 import com.bank.cebos.dto.auth.TokenResponse;
@@ -19,6 +21,11 @@ public class MobileAuthController {
 
   public MobileAuthController(MobileAuthService mobileAuthService) {
     this.mobileAuthService = mobileAuthService;
+  }
+
+  @PostMapping("/init")
+  public MobileInitResponse init(@Valid @RequestBody MobileInitRequest request) {
+    return mobileAuthService.initByMobile(request.mobile());
   }
 
   @PostMapping("/login")
