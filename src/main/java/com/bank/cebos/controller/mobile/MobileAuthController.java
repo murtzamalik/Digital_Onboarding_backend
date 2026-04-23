@@ -2,14 +2,12 @@ package com.bank.cebos.controller.mobile;
 
 import com.bank.cebos.dto.auth.MobileInitRequest;
 import com.bank.cebos.dto.auth.MobileInitResponse;
-import com.bank.cebos.dto.auth.MobileLoginRequest;
 import com.bank.cebos.dto.auth.RefreshRequest;
 import com.bank.cebos.dto.auth.TokenResponse;
 import com.bank.cebos.service.auth.MobileAuthService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,13 +24,6 @@ public class MobileAuthController {
   @PostMapping("/init")
   public MobileInitResponse init(@Valid @RequestBody MobileInitRequest request) {
     return mobileAuthService.initByMobile(request.mobile());
-  }
-
-  @PostMapping("/login")
-  public TokenResponse login(
-      @Valid @RequestBody MobileLoginRequest request,
-      @RequestHeader(value = "X-CEBOS-Mobile-Dev-Secret", required = false) String mobileDevSecret) {
-    return mobileAuthService.login(request, mobileDevSecret);
   }
 
   @PostMapping("/refresh")

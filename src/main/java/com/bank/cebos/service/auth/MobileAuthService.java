@@ -2,7 +2,6 @@ package com.bank.cebos.service.auth;
 
 import com.bank.cebos.config.JwtProperties;
 import com.bank.cebos.dto.auth.MobileInitResponse;
-import com.bank.cebos.dto.auth.MobileLoginRequest;
 import com.bank.cebos.dto.auth.RefreshRequest;
 import com.bank.cebos.dto.auth.TokenResponse;
 import com.bank.cebos.entity.AuthRefreshToken;
@@ -33,7 +32,6 @@ public class MobileAuthService {
   private final JwtTokenService jwtTokenService;
   private final RefreshTokenHasher refreshTokenHasher;
   private final JwtProperties jwtProperties;
-  private final String mobileDevSecret;
   private final boolean otpEchoEnabled;
 
   public MobileAuthService(
@@ -45,7 +43,6 @@ public class MobileAuthService {
       JwtTokenService jwtTokenService,
       RefreshTokenHasher refreshTokenHasher,
       JwtProperties jwtProperties,
-      @Value("${cebos.mobile.dev-secret:}") String mobileDevSecret,
       @Value("${cebos.otp.echo-enabled:false}") boolean otpEchoEnabled) {
     this.employeeOnboardingService = employeeOnboardingService;
     this.employeeOnboardingRepository = employeeOnboardingRepository;
@@ -55,7 +52,6 @@ public class MobileAuthService {
     this.jwtTokenService = jwtTokenService;
     this.refreshTokenHasher = refreshTokenHasher;
     this.jwtProperties = jwtProperties;
-    this.mobileDevSecret = mobileDevSecret == null ? "" : mobileDevSecret;
     this.otpEchoEnabled = otpEchoEnabled;
   }
 
@@ -89,23 +85,6 @@ public class MobileAuthService {
   }
 
   @Transactional
-  public TokenResponse login(MobileLoginRequest request, String devSecretHeader) {
-    if (mobileDevSecret.isBlank()) {
-      throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN,
-          "Passwordless mobile login (OTP) is not implemented. For local development only, set"
-              + " cebos.mobile.dev-secret or CEBOS_MOBILE_DEV_SECRET and send header"
-              + " X-CEBOS-Mobile-Dev-Secret.");
-    }
-    if (devSecretHeader == null || !mobileDevSecret.equals(devSecretHeader)) {
-      throw new BadCredentialsException("Invalid mobile dev credentials");
-    }
-    EmployeeOnboarding employee =
-        employeeOnboardingService.requireByEmployeeRefForMobileLogin(request.employeeRef());
-    return issueTokens(employee);
-  }
-
-  @Transactional
   public TokenResponse refresh(RefreshRequest request) {
     String hash = refreshTokenHasher.sha256Hex(request.refreshToken());
     AuthRefreshToken row =
@@ -117,6 +96,13 @@ public class MobileAuthService {
         employeeOnboardingService.requireByIdForMobileRefresh(row.getPrincipalId());
     row.setRevoked(true);
     authRefreshTokenRepository.save(row);
+    return issueTokens(employee);
+  }
+
+  @Transactional
+  public TokenResponse issueTokensForEmployeeId(Long employeeOnboardingId) {
+    EmployeeOnboarding employee =
+        employeeOnboardingService.requireByIdForMobileRefresh(employeeOnboardingId);
     return issueTokens(employee);
   }
 

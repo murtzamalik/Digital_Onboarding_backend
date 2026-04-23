@@ -47,8 +47,7 @@ public class SecurityConfig {
             "http://127.0.0.1:5173",
             "http://127.0.0.1:5174"));
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    config.setAllowedHeaders(
-        List.of("Authorization", "Content-Type", "X-CEBOS-Mobile-Dev-Secret"));
+    config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
     config.setExposedHeaders(List.of("X-Correlation-Id"));
     config.setAllowCredentials(false);
     config.setMaxAge(3600L);
@@ -69,7 +68,8 @@ public class SecurityConfig {
             "/api/v1/portal/auth/**",
             "/api/v1/admin/auth/**",
             "/api/v1/mobile/auth/init",
-            "/api/v1/mobile/auth/login",
+            "/api/v1/mobile/auth/otp/verify",
+            "/api/v1/mobile/auth/otp/resend",
             "/api/v1/mobile/auth/refresh",
             "/api/v1/mobile/policy")
         .cors(Customizer.withDefaults())

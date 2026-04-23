@@ -8,6 +8,7 @@ import com.bank.cebos.dto.auth.OtpVerifyRequest;
 import com.bank.cebos.dto.auth.OtpVerifyResponse;
 import com.bank.cebos.enums.PrincipalKind;
 import com.bank.cebos.security.CebosUserDetails;
+import com.bank.cebos.service.auth.MobileAuthService;
 import com.bank.cebos.service.auth.OtpService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,9 +24,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class MobileOtpController {
 
   private final OtpService otpService;
+  private final MobileAuthService mobileAuthService;
 
-  public MobileOtpController(OtpService otpService) {
+  public MobileOtpController(OtpService otpService, MobileAuthService mobileAuthService) {
     this.otpService = otpService;
+    this.mobileAuthService = mobileAuthService;
   }
 
   @PostMapping("/issue")
@@ -37,16 +40,17 @@ public class MobileOtpController {
   }
 
   @PostMapping("/verify")
-  public OtpVerifyResponse verify(
-      @AuthenticationPrincipal CebosUserDetails principal, @Valid @RequestBody OtpVerifyRequest request) {
-    requireMobilePrincipal(principal, request.employeeOnboardingId());
-    return new OtpVerifyResponse(otpService.verifyOtp(request.employeeOnboardingId(), request.otp()));
+  public OtpVerifyResponse verify(@Valid @RequestBody OtpVerifyRequest request) {
+    boolean verified = otpService.verifyOtp(request.employeeOnboardingId(), request.otp());
+    if (!verified) {
+      return new OtpVerifyResponse(false, null, null);
+    }
+    var tokens = mobileAuthService.issueTokensForEmployeeId(request.employeeOnboardingId());
+    return new OtpVerifyResponse(true, tokens.accessToken(), tokens.refreshToken());
   }
 
   @PostMapping("/resend")
-  public OtpResendResponse resend(
-      @AuthenticationPrincipal CebosUserDetails principal, @Valid @RequestBody OtpResendRequest request) {
-    requireMobilePrincipal(principal, request.employeeOnboardingId());
+  public OtpResendResponse resend(@Valid @RequestBody OtpResendRequest request) {
     return new OtpResendResponse(otpService.resendOtp(request.employeeOnboardingId()));
   }
 

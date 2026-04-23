@@ -26,7 +26,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class MobileAuthRateLimitFilter extends OncePerRequestFilter {
 
-  private static final String PREFIX_MOBILE_LOGIN = "m-login";
   private static final String PREFIX_MOBILE_REFRESH = "m-refresh";
   private static final String PREFIX_MOBILE_OTP = "m-otp";
   private static final String PREFIX_PORTAL_LOGIN = "p-login";
@@ -103,15 +102,11 @@ public class MobileAuthRateLimitFilter extends OncePerRequestFilter {
                 PREFIX_PORTAL_RESET, ip, rateLimitProperties.getPortalResetPasswordPerMinute());
       }
     } else if (path.startsWith("/api/v1/mobile/auth/")) {
-      if (path.endsWith("/login")) {
-        allowed =
-            limiter.tryConsume(
-                PREFIX_MOBILE_LOGIN, ip, rateLimitProperties.getMobileLoginPerMinute());
-      } else if (path.endsWith("/refresh")) {
+      if (path.endsWith("/refresh")) {
         allowed =
             limiter.tryConsume(
                 PREFIX_MOBILE_REFRESH, ip, rateLimitProperties.getMobileRefreshPerMinute());
-      } else if (path.contains("/auth/otp/")) {
+      } else if (path.endsWith("/init") || path.contains("/auth/otp/")) {
         allowed =
             limiter.tryConsume(PREFIX_MOBILE_OTP, ip, rateLimitProperties.getMobileOtpPerMinute());
       }

@@ -43,9 +43,10 @@ class MobileAuthRateLimitFilterTest {
   }
 
   @Test
-  void returns429WhenLoginLimited() throws ServletException, IOException {
-    when(limiter.tryConsume(eq("m-login"), anyString(), anyInt())).thenReturn(false);
-    MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/mobile/auth/login");
+  void returns429WhenMobileOtpLimited() throws ServletException, IOException {
+    when(limiter.tryConsume(eq("m-otp"), anyString(), anyInt())).thenReturn(false);
+    MockHttpServletRequest req =
+        new MockHttpServletRequest("POST", "/api/v1/mobile/auth/otp/verify");
     req.setRemoteAddr("203.0.113.9");
     MockHttpServletResponse res = new MockHttpServletResponse();
     MockFilterChain chain = new MockFilterChain();
@@ -54,13 +55,13 @@ class MobileAuthRateLimitFilterTest {
 
     assertThat(res.getStatus()).isEqualTo(429);
     assertThat(res.getContentAsString()).contains("Too many requests");
-    verify(limiter).tryConsume(eq("m-login"), eq("203.0.113.9"), eq(2));
+    verify(limiter).tryConsume(eq("m-otp"), eq("203.0.113.9"), eq(7));
   }
 
   @Test
   void continuesWhenAllowed() throws ServletException, IOException {
-    when(limiter.tryConsume(eq("m-login"), anyString(), anyInt())).thenReturn(true);
-    MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/mobile/auth/login");
+    when(limiter.tryConsume(eq("m-otp"), anyString(), anyInt())).thenReturn(true);
+    MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/mobile/auth/init");
     req.setRemoteAddr("198.51.100.1");
     MockHttpServletResponse res = new MockHttpServletResponse();
     MockFilterChain chain = new MockFilterChain();
@@ -72,15 +73,16 @@ class MobileAuthRateLimitFilterTest {
 
   @Test
   void usesForwardedForFirstHop() throws ServletException, IOException {
-    when(limiter.tryConsume(eq("m-login"), anyString(), anyInt())).thenReturn(true);
-    MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/mobile/auth/login");
+    when(limiter.tryConsume(eq("m-otp"), anyString(), anyInt())).thenReturn(true);
+    MockHttpServletRequest req =
+        new MockHttpServletRequest("POST", "/api/v1/mobile/auth/otp/resend");
     req.addHeader("X-Forwarded-For", "10.0.0.1, 172.16.0.1");
     MockHttpServletResponse res = new MockHttpServletResponse();
     MockFilterChain chain = new MockFilterChain();
 
     filter.doFilter(req, res, chain);
 
-    verify(limiter).tryConsume(eq("m-login"), eq("10.0.0.1"), eq(2));
+    verify(limiter).tryConsume(eq("m-otp"), eq("10.0.0.1"), eq(7));
   }
 
   @Test

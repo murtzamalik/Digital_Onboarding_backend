@@ -136,9 +136,6 @@ cebos:
   jwt:
     # Dev-only default; use a strong secret via CEBOS_JWT_SECRET in any shared environment.
     secret: ${CEBOS_JWT_SECRET:cebos-dev-jwt-secret-change-me-32chars!!}
-  mobile:
-    # Local E2E default; override CEBOS_MOBILE_DEV_SECRET in any shared environment.
-    dev-secret: ${CEBOS_MOBILE_DEV_SECRET:e2e-mobile-dev-secret}
   otp:
     # Local-dev only. Keep false in shared/prod-like environments.
     echo-enabled: ${CEBOS_OTP_ECHO_ENABLED:true}
