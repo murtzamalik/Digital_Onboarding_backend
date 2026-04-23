@@ -1,5 +1,6 @@
 package com.bank.cebos;
 
+import com.bank.cebos.config.CorsProperties;
 import com.bank.cebos.config.JobsProperties;
 import com.bank.cebos.config.JwtProperties;
 import com.bank.cebos.config.MailDispatchProperties;
@@ -16,6 +17,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableScheduling
 @EnableConfigurationProperties({
+  CorsProperties.class,
   JwtProperties.class,
   JobsProperties.class,
   MailDispatchProperties.class,

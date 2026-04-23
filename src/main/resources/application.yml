@@ -57,6 +57,13 @@ resilience4j:
         base-config: default
 
 cebos:
+  cors:
+    # Browser CORS: patterns allow any port on these hosts (admin/corporate portals; mobile dev).
+    # Override in production via env or add https patterns as needed.
+    allowed-origin-patterns:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
+      - "http://46.224.146.158:*"
   mail:
     dispatch-enabled: ${CEBOS_MAIL_DISPATCH_ENABLED:false}
     from-address: "${CEBOS_MAIL_FROM:CEBOS <noreply@localhost>}"

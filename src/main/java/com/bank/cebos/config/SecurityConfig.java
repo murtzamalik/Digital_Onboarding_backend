@@ -25,9 +25,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
+  private final CorsProperties corsProperties;
 
-  public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+  public SecurityConfig(
+      JwtAuthenticationFilter jwtAuthenticationFilter, CorsProperties corsProperties) {
     this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    this.corsProperties = corsProperties;
   }
 
   @Bean
@@ -38,16 +41,10 @@ public class SecurityConfig {
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration config = new CorsConfiguration();
-    config.setAllowedOrigins(
-        List.of(
-            "http://localhost:8081",
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "http://127.0.0.1:8081",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:5174"));
+    config.setAllowedOriginPatterns(corsProperties.getAllowedOriginPatterns());
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+    config.setAllowedHeaders(
+        List.of("Authorization", "Content-Type", "X-Requested-With"));
     config.setExposedHeaders(List.of("X-Correlation-Id"));
     config.setAllowCredentials(false);
     config.setMaxAge(3600L);
