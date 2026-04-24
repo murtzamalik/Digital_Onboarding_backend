@@ -1,6 +1,7 @@
 package com.bank.cebos;
 
 import com.bank.cebos.config.BbsKycProperties;
+import com.bank.cebos.config.HttpLoggingProperties;
 import com.bank.cebos.config.CorsProperties;
 import com.bank.cebos.config.JobsProperties;
 import com.bank.cebos.config.JwtProperties;
@@ -20,6 +21,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableConfigurationProperties({
   BbsKycProperties.class,
   CorsProperties.class,
+  HttpLoggingProperties.class,
   JwtProperties.class,
   JobsProperties.class,
   MailDispatchProperties.class,

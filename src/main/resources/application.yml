@@ -57,6 +57,16 @@ resilience4j:
         base-config: default
 
 cebos:
+  http-logging:
+    # Inbound servlet traffic + BBS outbound (see HttpExchangeLoggingFilter, BbsKycClientImpl).
+    enabled: ${CEBOS_HTTP_LOG_ENABLED:true}
+    excluded-path-prefixes:
+      - /actuator
+    max-cached-body-bytes: ${CEBOS_HTTP_LOG_MAX_CACHED_BYTES:10485760}
+    max-logged-body-chars: ${CEBOS_HTTP_LOG_MAX_BODY_CHARS:2097152}
+    # Set positive to shorten long JSON strings in logs (e.g. 400). 0 = log full scalars up to max-logged-body-chars.
+    max-json-scalar-chars: ${CEBOS_HTTP_LOG_MAX_JSON_SCALAR:0}
+    log-bbs-http: ${CEBOS_HTTP_LOG_BBS:true}
   bbs:
     # Pakistani CNIC OCR + face match (KYC BBS). Set CEBOS_BBS_BASE_URL in production.
     base-url: ${CEBOS_BBS_BASE_URL:http://80.238.228.115:8000/bbs-sdks}

@@ -1,6 +1,8 @@
 package com.bank.cebos.integration.bbs;
 
 import com.bank.cebos.config.BbsKycProperties;
+import com.bank.cebos.config.HttpLoggingProperties;
+import com.bank.cebos.logging.HttpLogPayloadFormatter;
 import com.bank.cebos.util.Base64ImagePayload;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,6 +10,7 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -24,11 +27,16 @@ public class BbsKycClientImpl implements BbsKycClient {
 
   private final BbsKycProperties properties;
   private final ObjectMapper objectMapper;
+  private final HttpLoggingProperties httpLoggingProperties;
   private final HttpClient httpClient;
 
-  public BbsKycClientImpl(BbsKycProperties properties, ObjectMapper objectMapper) {
+  public BbsKycClientImpl(
+      BbsKycProperties properties,
+      ObjectMapper objectMapper,
+      HttpLoggingProperties httpLoggingProperties) {
     this.properties = properties;
     this.objectMapper = objectMapper;
+    this.httpLoggingProperties = httpLoggingProperties;
     this.httpClient =
         HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(Math.max(1, properties.connectTimeoutSeconds())))
@@ -102,14 +110,35 @@ public class BbsKycClientImpl implements BbsKycClient {
             .POST(HttpRequest.BodyPublishers.ofByteArray(jsonBody))
             .build();
     try {
+      if (httpLoggingProperties.isLogBbsHttp()) {
+        String reqLogged =
+            HttpLogPayloadFormatter.formatJsonBytesForLog(
+                jsonBody, objectMapper, httpLoggingProperties);
+        log.info("BBS outbound request operation={} url={}\n{}", operation, url, reqLogged);
+      }
       HttpResponse<String> response =
           httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      String responseBody = response.body() == null ? "" : response.body();
+      if (httpLoggingProperties.isLogBbsHttp()) {
+        String resLogged =
+            HttpLogPayloadFormatter.formatBodyForLog(
+                responseBody.getBytes(StandardCharsets.UTF_8),
+                "application/json",
+                objectMapper,
+                httpLoggingProperties);
+        log.info(
+            "BBS outbound response operation={} url={} status={}\n{}",
+            operation,
+            url,
+            response.statusCode(),
+            resLogged);
+      }
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         log.warn(
             "BBS {} failed: status={} body={}",
             operation,
             response.statusCode(),
-            truncateForLog(response.body(), 200));
+            truncateForLog(responseBody, 200));
         throw new ResponseStatusException(
             HttpStatus.BAD_GATEWAY, "OCR/face provider returned an error");
       }
