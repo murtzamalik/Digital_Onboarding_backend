@@ -39,6 +39,18 @@ spring:
 server:
   port: 8080
 
+# Console logging: visible in terminals and `docker logs`. Override with LOGGING_LEVEL_* env vars.
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.bank.cebos: ${LOGGING_LEVEL_COM_BANK_CEBOS:INFO}
+    # One-line HTTP summary at INFO; full bodies/headers at DEBUG.
+    com.bank.cebos.logging: ${LOGGING_LEVEL_COM_BANK_CEBOS_LOGGING:INFO}
+    com.bank.cebos.integration.bbs: ${LOGGING_LEVEL_COM_BANK_CEBOS_BBS:INFO}
+    org.springframework.web.servlet.DispatcherServlet: ${LOGGING_LEVEL_DISPATCHER_SERVLET:INFO}
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [%15.15t] %-40.40logger{39} [%X{correlationId:-}] : %m%n%wEx"
+
 resilience4j:
   circuitbreaker:
     configs:
@@ -163,3 +175,7 @@ cebos:
   otp:
     # Local-dev only. Keep false in shared/prod-like environments.
     echo-enabled: ${CEBOS_OTP_ECHO_ENABLED:true}
+
+# Flat keys so this document does not replace the root `logging:` map above.
+logging.level.com.bank.cebos.logging: DEBUG
+logging.level.com.bank.cebos.integration.bbs: DEBUG

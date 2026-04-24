@@ -111,27 +111,37 @@ public class BbsKycClientImpl implements BbsKycClient {
             .build();
     try {
       if (httpLoggingProperties.isLogBbsHttp()) {
-        String reqLogged =
-            HttpLogPayloadFormatter.formatJsonBytesForLog(
-                jsonBody, objectMapper, httpLoggingProperties);
-        log.info("BBS outbound request operation={} url={}\n{}", operation, url, reqLogged);
+        log.info(
+            "BBS outbound request operation={} url={} requestBytes={}",
+            operation,
+            url,
+            jsonBody.length);
+        if (log.isDebugEnabled()) {
+          String reqLogged =
+              HttpLogPayloadFormatter.formatJsonBytesForLog(
+                  jsonBody, objectMapper, httpLoggingProperties);
+          log.debug("BBS outbound request body operation={}\n{}", operation, reqLogged);
+        }
       }
       HttpResponse<String> response =
           httpClient.send(request, HttpResponse.BodyHandlers.ofString());
       String responseBody = response.body() == null ? "" : response.body();
       if (httpLoggingProperties.isLogBbsHttp()) {
-        String resLogged =
-            HttpLogPayloadFormatter.formatBodyForLog(
-                responseBody.getBytes(StandardCharsets.UTF_8),
-                "application/json",
-                objectMapper,
-                httpLoggingProperties);
         log.info(
-            "BBS outbound response operation={} url={} status={}\n{}",
+            "BBS outbound response operation={} url={} status={} responseChars={}",
             operation,
             url,
             response.statusCode(),
-            resLogged);
+            responseBody.length());
+        if (log.isDebugEnabled()) {
+          String resLogged =
+              HttpLogPayloadFormatter.formatBodyForLog(
+                  responseBody.getBytes(StandardCharsets.UTF_8),
+                  "application/json",
+                  objectMapper,
+                  httpLoggingProperties);
+          log.debug("BBS outbound response body operation={}\n{}", operation, resLogged);
+        }
       }
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         log.warn(

@@ -96,15 +96,16 @@ public class HttpExchangeLoggingFilter extends OncePerRequestFilter {
         HttpLogPayloadFormatter.formatBodyForLog(
             resBytes, resContentType, objectMapper, props);
 
-    log.info(
-        "HTTP inbound {} {} -> {} ({} ms)\nrequestHeaders={}\nrequestBody=\n{}\nresponseBody=\n{}",
-        method,
-        pathWithQuery,
-        status,
-        durationMs,
-        headers,
-        reqBody,
-        resBody);
+    log.info("HTTP inbound {} {} -> {} ({} ms)", method, pathWithQuery, status, durationMs);
+    if (log.isDebugEnabled()) {
+      log.debug(
+          "HTTP inbound detail {} {}\nrequestHeaders={}\nrequestBody=\n{}\nresponseBody=\n{}",
+          method,
+          pathWithQuery,
+          headers,
+          reqBody,
+          resBody);
+    }
   }
 
   private static Map<String, List<String>> safeHeaders(HttpServletRequest req) {
