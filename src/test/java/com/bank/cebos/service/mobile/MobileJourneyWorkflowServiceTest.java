@@ -12,7 +12,6 @@ import com.bank.cebos.dto.mobile.CnicCaptureRequest;
 import com.bank.cebos.dto.mobile.FaceMatchSubmitRequest;
 import com.bank.cebos.dto.mobile.FingerprintSubmitRequest;
 import com.bank.cebos.dto.mobile.FormSubmitRequest;
-import com.bank.cebos.dto.mobile.LivenessSubmitRequest;
 import com.bank.cebos.dto.mobile.QuizSubmitRequest;
 import com.bank.cebos.dto.mobile.QuizTemplateResponse;
 import com.bank.cebos.dto.mobile.ReviewSubmitRequest;
@@ -172,8 +171,6 @@ class MobileJourneyWorkflowServiceTest {
     String imgB64 = "QUJDRA==";
     service.submitCnicFront(20L, new CnicCaptureRequest(imgB64));
     service.submitCnicBack(20L, new CnicCaptureRequest(imgB64));
-    service.submitLiveness(
-        20L, new LivenessSubmitRequest("L1", "MOBILE", new BigDecimal("0.91"), "PASSED"));
     service.submitFaceMatch(20L, new FaceMatchSubmitRequest(imgB64));
     service.submitFingerprint(
         20L,

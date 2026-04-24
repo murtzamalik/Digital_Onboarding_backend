@@ -212,9 +212,9 @@ public class MobileJourneyWorkflowService {
     if (nadra.verified()) {
       employeeOnboardingService.transition(
           e,
-          OnboardingStatus.LIVENESS_PENDING,
+          OnboardingStatus.FACE_MATCH_PENDING,
           changedBy(onboardingId),
-          "auto-advance after NADRA verification");
+          "auto-advance after NADRA verification (face match next)");
     }
     return toResponse(e);
   }

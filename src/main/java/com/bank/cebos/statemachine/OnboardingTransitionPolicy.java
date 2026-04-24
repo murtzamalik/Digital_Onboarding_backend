@@ -81,7 +81,7 @@ public class OnboardingTransitionPolicy {
 
     put(m, OnboardingStatus.NADRA_PENDING, OnboardingStatus.NADRA_VERIFIED, OnboardingStatus.NADRA_FAILED);
     put(m, OnboardingStatus.NADRA_FAILED, OnboardingStatus.BLOCKED);
-    put(m, OnboardingStatus.NADRA_VERIFIED, OnboardingStatus.LIVENESS_PENDING);
+    put(m, OnboardingStatus.NADRA_VERIFIED, OnboardingStatus.FACE_MATCH_PENDING);
 
     put(
         m,
