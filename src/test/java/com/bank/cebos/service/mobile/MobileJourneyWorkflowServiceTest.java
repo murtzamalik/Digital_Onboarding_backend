@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.bank.cebos.dto.mobile.CnicCaptureRequest;
@@ -17,7 +18,10 @@ import com.bank.cebos.dto.mobile.QuizTemplateResponse;
 import com.bank.cebos.dto.mobile.ReviewSubmitRequest;
 import com.bank.cebos.entity.EmployeeOnboarding;
 import com.bank.cebos.enums.OnboardingStatus;
+import com.bank.cebos.config.BbsKycProperties;
 import com.bank.cebos.integration.AmlIntegration;
+import com.bank.cebos.integration.bbs.BbsFaceMatchResult;
+import com.bank.cebos.integration.bbs.BbsKycClient;
 import com.bank.cebos.integration.NadraIntegration;
 import com.bank.cebos.integration.T24Integration;
 import com.bank.cebos.integration.model.AmlScreeningResult;
@@ -28,6 +32,7 @@ import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.service.config.RuntimeConfigService;
 import com.bank.cebos.service.onboarding.EmployeeOnboardingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.bank.cebos.dto.mobile.QuizAnswerRequest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -48,11 +53,13 @@ class MobileJourneyWorkflowServiceTest {
   @Mock private NadraIntegration nadraIntegration;
   @Mock private AmlIntegration amlIntegration;
   @Mock private T24Integration t24Integration;
-
+  @Mock private BbsKycClient bbsKycClient;
+  @Mock private BbsKycProperties bbsKycProperties;
   private MobileJourneyWorkflowService service;
 
   @BeforeEach
   void setUp() {
+    lenient().when(bbsKycProperties.faceMatchMinSimilarity()).thenReturn(70.0);
     service =
         new MobileJourneyWorkflowService(
             employeeOnboardingService,
@@ -62,21 +69,21 @@ class MobileJourneyWorkflowServiceTest {
             nadraIntegration,
             amlIntegration,
             t24Integration,
+            bbsKycClient,
+            bbsKycProperties,
             new ObjectMapper());
   }
 
   @Test
-  void quizTemplateLoadsFromRuntimeConfig() {
+  void quizTemplateReturnsMotherNameQuestion() {
     EmployeeOnboarding e = employee(10L, OnboardingStatus.QUIZ_PENDING);
     when(employeeOnboardingService.getRequiredById(10L)).thenReturn(e);
-    when(runtimeConfigService.getString(eq("mobile.quiz.template_json"), any()))
-        .thenReturn(
-            "{\"templateId\":\"CFG-1\",\"passingScorePercent\":70,\"questions\":[{\"questionId\":\"Q1\",\"prompt\":\"P?\",\"options\":[\"A\",\"B\"]}]}");
 
     QuizTemplateResponse response = service.quizTemplate(10L);
 
-    assertThat(response.templateId()).isEqualTo("CFG-1");
+    assertThat(response.templateId()).isEqualTo("MOTHER_NAME_QUIZ");
     assertThat(response.questions()).hasSize(1);
+    assertThat(response.questions().get(0).questionId()).isEqualTo("Q_MOTHER_NAME");
   }
 
   @Test
@@ -121,24 +128,24 @@ class MobileJourneyWorkflowServiceTest {
   }
 
   @Test
-  void submitQuizUsesConfiguredAnswerKey() {
+  void submitQuizMarksFailedWhenMotherNameDoesNotMatch() {
     EmployeeOnboarding e = employee(13L, OnboardingStatus.QUIZ_PENDING);
+    e.setMotherName("Amina Khatoon");
     when(employeeOnboardingService.getRequiredById(13L)).thenReturn(e);
-    when(runtimeConfigService.getString(eq("mobile.quiz.answer_key_json"), any()))
-        .thenReturn("{\"Q1\":\"RIGHT\"}");
     QuizSubmitRequest req =
         new QuizSubmitRequest(
-            "T1", List.of(new com.bank.cebos.dto.mobile.QuizAnswerRequest("Q1", "this is right answer")));
+            "T1", List.of(new QuizAnswerRequest("Q_MOTHER_NAME", "Not The Mother Name")));
 
     service.submitQuiz(13L, req);
 
-    assertThat(e.getQuizScore()).isEqualTo(1);
+    assertThat(e.getQuizScore()).isEqualTo(0);
     assertThat(e.getQuizPassed()).isFalse();
   }
 
   @Test
-  void smokeJourneyTransitionsFromOtpVerifiedToAccountOpened() {
+  void smokeJourneyTransitionsFromOtpVerifiedToAccountOpened() throws Exception {
     EmployeeOnboarding e = employee(20L, OnboardingStatus.OTP_VERIFIED);
+    e.setMotherName("Smoke Mother");
     when(employeeOnboardingService.getRequiredById(20L)).thenReturn(e);
     doAnswer(
             inv -> {
@@ -154,28 +161,26 @@ class MobileJourneyWorkflowServiceTest {
         .thenReturn(new T24AccountOpenResult(true, "ACC-SMOKE", "CUST-SMOKE", "ok"));
     when(nadraIntegration.verifyByCnic(any()))
         .thenReturn(new NadraVerificationResult(true, "NADRA-SMOKE", "OK"));
-    when(runtimeConfigService.getString(eq("mobile.quiz.answer_key_json"), any()))
-        .thenReturn("{\"Q1\":\"A\",\"Q2\":\"B\",\"Q3\":\"C\"}");
+    when(bbsKycClient.extractPakistaniIdCard(any()))
+        .thenReturn(
+            new ObjectMapper()
+                .readTree(
+                    "{\"frontSide\":{\"english\":{\"name\":\"N\",\"identity_number\":\"35202-1234567-1\"}}}"));
+    when(bbsKycClient.matchIdCardToSelfie(any(), any()))
+        .thenReturn(new BbsFaceMatchResult(true, 95.0));
 
-    service.submitCnicFront(
-        20L, new CnicCaptureRequest("mobile://front.jpg", null, null, null, null, null, null, null, null, null));
-    service.submitCnicBack(
-        20L, new CnicCaptureRequest("mobile://back.jpg", null, null, null, null, null, null, null, null, null));
+    String imgB64 = "QUJDRA==";
+    service.submitCnicFront(20L, new CnicCaptureRequest(imgB64));
+    service.submitCnicBack(20L, new CnicCaptureRequest(imgB64));
     service.submitLiveness(
         20L, new LivenessSubmitRequest("L1", "MOBILE", new BigDecimal("0.91"), "PASSED"));
-    service.submitFaceMatch(
-        20L, new FaceMatchSubmitRequest("mobile://selfie.jpg", new BigDecimal("0.90"), "MATCHED"));
+    service.submitFaceMatch(20L, new FaceMatchSubmitRequest(imgB64));
     service.submitFingerprint(
         20L,
         new FingerprintSubmitRequest("TPL-1", "mobile://fp.dat", new BigDecimal("0.95"), "MATCHED"));
     service.submitQuiz(
         20L,
-        new QuizSubmitRequest(
-            "T-SMOKE",
-            List.of(
-                new com.bank.cebos.dto.mobile.QuizAnswerRequest("Q1", "A"),
-                new com.bank.cebos.dto.mobile.QuizAnswerRequest("Q2", "B"),
-                new com.bank.cebos.dto.mobile.QuizAnswerRequest("Q3", "C"))));
+        new QuizSubmitRequest("T-SMOKE", List.of(new QuizAnswerRequest("Q_MOTHER_NAME", "Smoke Mother"))));
     service.submitForm(20L, new FormSubmitRequest(Map.of("fullName", "Smoke User")));
     service.submitReview(20L, new ReviewSubmitRequest("SAVINGS", "PKR"));
 
@@ -191,6 +196,7 @@ class MobileJourneyWorkflowServiceTest {
     e.setFullName("Employee " + id);
     e.setCorporateClientId(1L);
     e.setPresentCountry("PK");
+    e.setMotherName("Test Mother " + id);
     return e;
   }
 }

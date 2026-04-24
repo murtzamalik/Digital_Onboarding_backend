@@ -100,8 +100,7 @@ class MobileJourneyControllerTest {
                 .contentType("application/json")
                 .content(
                     objectMapper.writeValueAsString(
-                        new CnicCaptureRequest(
-                            "mobile://front.jpg", null, null, null, null, null, null, null, null, null))))
+                        new CnicCaptureRequest("QUJDRA=="))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("NADRA_PENDING"));
   }

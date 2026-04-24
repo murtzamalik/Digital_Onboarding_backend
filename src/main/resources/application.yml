@@ -57,6 +57,12 @@ resilience4j:
         base-config: default
 
 cebos:
+  bbs:
+    # Pakistani CNIC OCR + face match (KYC BBS). Set CEBOS_BBS_BASE_URL in production.
+    base-url: ${CEBOS_BBS_BASE_URL:http://80.238.228.115:8000/bbs-sdks}
+    face-match-min-similarity: ${CEBOS_BBS_FACE_MIN_SIM:70.0}
+    connect-timeout-seconds: ${CEBOS_BBS_CONNECT_TIMEOUT:30}
+    read-timeout-seconds: ${CEBOS_BBS_READ_TIMEOUT:120}
   cors:
     # Browser CORS: patterns allow any port on these hosts (admin/corporate portals; mobile dev).
     # Production UI: https://46.224.146.158 — override via env for other deploys.

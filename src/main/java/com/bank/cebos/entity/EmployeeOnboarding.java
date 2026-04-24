@@ -137,6 +137,18 @@ public class EmployeeOnboarding {
   @Column(name = "selfie_image_path", length = 1024)
   private String selfieImagePath;
 
+  @Lob
+  @Column(name = "cnic_front_image_data", columnDefinition = "LONGBLOB")
+  private byte[] cnicFrontImageData;
+
+  @Lob
+  @Column(name = "cnic_back_image_data", columnDefinition = "LONGBLOB")
+  private byte[] cnicBackImageData;
+
+  @Lob
+  @Column(name = "selfie_image_data", columnDefinition = "LONGBLOB")
+  private byte[] selfieImageData;
+
   @Column(name = "liveness_session_id", length = 128)
   private String livenessSessionId;
 
@@ -559,6 +571,30 @@ public class EmployeeOnboarding {
 
   public void setSelfieImagePath(String selfieImagePath) {
     this.selfieImagePath = selfieImagePath;
+  }
+
+  public byte[] getCnicFrontImageData() {
+    return cnicFrontImageData;
+  }
+
+  public void setCnicFrontImageData(byte[] cnicFrontImageData) {
+    this.cnicFrontImageData = cnicFrontImageData;
+  }
+
+  public byte[] getCnicBackImageData() {
+    return cnicBackImageData;
+  }
+
+  public void setCnicBackImageData(byte[] cnicBackImageData) {
+    this.cnicBackImageData = cnicBackImageData;
+  }
+
+  public byte[] getSelfieImageData() {
+    return selfieImageData;
+  }
+
+  public void setSelfieImageData(byte[] selfieImageData) {
+    this.selfieImageData = selfieImageData;
   }
 
   public String getLivenessSessionId() {

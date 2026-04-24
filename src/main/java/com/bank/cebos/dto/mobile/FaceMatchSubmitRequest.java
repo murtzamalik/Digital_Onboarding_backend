@@ -1,12 +1,11 @@
 package com.bank.cebos.dto.mobile;
 
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.math.BigDecimal;
 
+/**
+ * The server loads the ID front image from KYC storage and calls the BBS face-compare API with
+ * this selfie. Client does not pass scores or a manual result.
+ */
 public record FaceMatchSubmitRequest(
-    @NotBlank @Size(max = 1024) String selfieImagePath,
-    @NotNull @DecimalMin("0.0") BigDecimal score,
-    @NotBlank @Size(max = 32) String result) {}
+    @NotBlank @Size(max = 20_000_000) String selfieBase64) {}

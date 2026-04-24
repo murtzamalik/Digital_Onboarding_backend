@@ -1,5 +1,6 @@
 package com.bank.cebos.service.mobile;
 
+import com.bank.cebos.config.BbsKycProperties;
 import com.bank.cebos.dto.mobile.CnicCaptureRequest;
 import com.bank.cebos.dto.mobile.FaceMatchSubmitRequest;
 import com.bank.cebos.dto.mobile.FingerprintSubmitRequest;
@@ -19,6 +20,9 @@ import com.bank.cebos.dto.mobile.ReviewSubmitRequest;
 import com.bank.cebos.entity.EmployeeOnboarding;
 import com.bank.cebos.enums.OnboardingStatus;
 import com.bank.cebos.integration.AmlIntegration;
+import com.bank.cebos.integration.bbs.BbsFaceMatchResult;
+import com.bank.cebos.integration.bbs.BbsKycClient;
+import com.bank.cebos.integration.bbs.PakistaniCnicBbsResponseMapper;
 import com.bank.cebos.integration.NadraIntegration;
 import com.bank.cebos.integration.T24Integration;
 import com.bank.cebos.integration.model.AmlScreeningRequest;
@@ -30,9 +34,14 @@ import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.repository.CorporateClientRepository;
 import com.bank.cebos.service.config.RuntimeConfigService;
 import com.bank.cebos.service.onboarding.EmployeeOnboardingService;
+import com.bank.cebos.util.Base64ImagePayload;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.Base64;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -48,6 +57,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -77,6 +87,8 @@ public class MobileJourneyWorkflowService {
   private final NadraIntegration nadraIntegration;
   private final AmlIntegration amlIntegration;
   private final T24Integration t24Integration;
+  private final BbsKycClient bbsKycClient;
+  private final BbsKycProperties bbsKycProperties;
   private final ObjectMapper objectMapper;
 
   public MobileJourneyWorkflowService(
@@ -87,6 +99,8 @@ public class MobileJourneyWorkflowService {
       NadraIntegration nadraIntegration,
       AmlIntegration amlIntegration,
       T24Integration t24Integration,
+      BbsKycClient bbsKycClient,
+      BbsKycProperties bbsKycProperties,
       ObjectMapper objectMapper) {
     this.employeeOnboardingService = employeeOnboardingService;
     this.employeeOnboardingRepository = employeeOnboardingRepository;
@@ -95,6 +109,8 @@ public class MobileJourneyWorkflowService {
     this.nadraIntegration = nadraIntegration;
     this.amlIntegration = amlIntegration;
     this.t24Integration = t24Integration;
+    this.bbsKycClient = bbsKycClient;
+    this.bbsKycProperties = bbsKycProperties;
     this.objectMapper = objectMapper;
   }
 
@@ -142,38 +158,26 @@ public class MobileJourneyWorkflowService {
           changedBy(onboardingId),
           "Mobile: entering OCR stage from OTP verified");
     }
-    e.setCnicFrontImagePath(request.imagePath().trim());
-    if (request.ocrFullName() != null && !request.ocrFullName().isBlank()) {
-      e.setFullName(request.ocrFullName().trim());
+    byte[] frontBytes;
+    try {
+      frontBytes = Base64ImagePayload.decodeToBytes(request.base64Image());
+    } catch (IllegalArgumentException ex) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
-    if (request.ocrFatherName() != null && !request.ocrFatherName().isBlank()) {
-      e.setFatherName(request.ocrFatherName().trim());
-    }
-    if (request.ocrMotherName() != null && !request.ocrMotherName().isBlank()) {
-      e.setMotherName(request.ocrMotherName().trim());
-    }
-    if (request.ocrGender() != null && !request.ocrGender().isBlank()) {
-      e.setGender(request.ocrGender().trim());
-    }
-    if (request.ocrAddress() != null && !request.ocrAddress().isBlank()) {
-      e.setPresentAddressLine1(request.ocrAddress().trim());
-    }
-    tryParseAndSetDate(request.ocrDob(), e::setDateOfBirth);
-    tryParseAndSetDate(request.ocrIssueDate(), e::setCnicIssueDate);
-    tryParseAndSetDate(request.ocrExpiryDate(), e::setCnicExpiryDate);
-    if ((e.getCnic() == null || e.getCnic().isBlank())
-        && request.ocrCnic() != null
-        && !request.ocrCnic().isBlank()) {
-      e.setCnic(request.ocrCnic().trim());
-    }
+    JsonNode bbs = bbsKycClient.extractPakistaniIdCard(request.base64Image());
+    PakistaniCnicBbsResponseMapper.mergeBbsOcrKey(e, "front", bbs, objectMapper);
+    PakistaniCnicBbsResponseMapper.OcrTextFields ocr = PakistaniCnicBbsResponseMapper.toOcrTextFields(bbs);
+    applyBbsOcrToEntity(e, ocr);
+    e.setCnicFrontImageData(frontBytes);
+    e.setCnicFrontImagePath(null);
     e.setOcrStatus("CAPTURED_FRONT");
-    e.setOcrJobId("OCR-" + e.getEmployeeRef() + "-" + Instant.now().toEpochMilli());
+    e.setOcrJobId("OCR-BBS-" + e.getEmployeeRef() + "-" + Instant.now().toEpochMilli());
     employeeOnboardingRepository.save(e);
     employeeOnboardingService.transition(
         e,
         OnboardingStatus.NADRA_PENDING,
         changedBy(onboardingId),
-        "Mobile: CNIC front captured");
+        "Mobile: CNIC front captured (BBS OCR)");
     return toResponse(e);
   }
 
@@ -181,7 +185,18 @@ public class MobileJourneyWorkflowService {
   public MobileJourneyStatusResponse submitCnicBack(long onboardingId, CnicCaptureRequest request) {
     EmployeeOnboarding e = employeeOnboardingService.getRequiredById(onboardingId);
     employeeOnboardingService.requireCurrentStatus(e, OnboardingStatus.NADRA_PENDING);
-    e.setCnicBackImagePath(request.imagePath().trim());
+    byte[] backBytes;
+    try {
+      backBytes = Base64ImagePayload.decodeToBytes(request.base64Image());
+    } catch (IllegalArgumentException ex) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+    JsonNode bbs = bbsKycClient.extractPakistaniIdCard(request.base64Image());
+    PakistaniCnicBbsResponseMapper.mergeBbsOcrKey(e, "back", bbs, objectMapper);
+    PakistaniCnicBbsResponseMapper.OcrTextFields ocr = PakistaniCnicBbsResponseMapper.toOcrTextFields(bbs);
+    applyBbsOcrToEntity(e, ocr);
+    e.setCnicBackImageData(backBytes);
+    e.setCnicBackImagePath(null);
     NadraVerificationResult nadra = nadraIntegration.verifyByCnic(e.getCnic());
     e.setNadraTransactionId(nadra.verificationReference());
     e.setNadraVerificationCode(nadra.statusCode());
@@ -234,9 +249,26 @@ public class MobileJourneyWorkflowService {
   public MobileJourneyStatusResponse submitFaceMatch(long onboardingId, FaceMatchSubmitRequest request) {
     EmployeeOnboarding e = employeeOnboardingService.getRequiredById(onboardingId);
     employeeOnboardingService.requireCurrentStatus(e, OnboardingStatus.FACE_MATCH_PENDING);
-    boolean passed = isPositive(request.result());
-    e.setSelfieImagePath(request.selfieImagePath().trim());
-    e.setFaceMatchScore(request.score());
+    byte[] frontBytes = e.getCnicFrontImageData();
+    if (frontBytes == null || frontBytes.length == 0) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "CNIC front image is not available for face match");
+    }
+    String idCardB64 = Base64.getEncoder().encodeToString(frontBytes);
+    byte[] selfieBytes;
+    try {
+      selfieBytes = Base64ImagePayload.decodeToBytes(request.selfieBase64());
+    } catch (IllegalArgumentException ex) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+    BbsFaceMatchResult r = bbsKycClient.matchIdCardToSelfie(idCardB64, request.selfieBase64());
+    double similarity = r.similarity();
+    boolean passed =
+        r.match() && similarity >= bbsKycProperties.faceMatchMinSimilarity();
+    e.setSelfieImageData(selfieBytes);
+    e.setSelfieImagePath(null);
+    e.setFaceMatchScore(
+        BigDecimal.valueOf(similarity).setScale(2, RoundingMode.HALF_UP));
     e.setFaceMatchResult(passed ? "MATCHED" : "FAILED");
     e.setFaceMatchCompletedAt(Instant.now());
     employeeOnboardingRepository.save(e);
@@ -244,7 +276,7 @@ public class MobileJourneyWorkflowService {
         e,
         passed ? OnboardingStatus.FACE_MATCHED : OnboardingStatus.FACE_MATCH_FAILED,
         changedBy(onboardingId),
-        "Mobile: face match submitted");
+        "Mobile: face match (BBS) similarity=" + similarity);
     if (passed) {
       employeeOnboardingService.transition(
           e,
@@ -498,6 +530,44 @@ public class MobileJourneyWorkflowService {
         || "MATCHED".equals(normalized)
         || "TRUE".equals(normalized)
         || "YES".equals(normalized);
+  }
+
+  private void applyBbsOcrToEntity(
+      EmployeeOnboarding e, PakistaniCnicBbsResponseMapper.OcrTextFields o) {
+    if (o == null) {
+      return;
+    }
+    if (StringUtils.hasText(o.fullName())
+        && (e.getFullName() == null || e.getFullName().isBlank())) {
+      e.setFullName(o.fullName().trim());
+    }
+    if (StringUtils.hasText(o.fatherName())
+        && (e.getFatherName() == null || e.getFatherName().isBlank())) {
+      e.setFatherName(o.fatherName().trim());
+    }
+    if (StringUtils.hasText(o.motherName())
+        && (e.getMotherName() == null || e.getMotherName().isBlank())) {
+      e.setMotherName(o.motherName().trim());
+    }
+    if (StringUtils.hasText(o.cnic()) && (e.getCnic() == null || e.getCnic().isBlank())) {
+      e.setCnic(o.cnic().trim());
+    }
+    if (StringUtils.hasText(o.gender()) && (e.getGender() == null || e.getGender().isBlank())) {
+      e.setGender(o.gender().trim());
+    }
+    if (e.getDateOfBirth() == null) {
+      tryParseAndSetDate(o.dob(), e::setDateOfBirth);
+    }
+    if (e.getCnicIssueDate() == null) {
+      tryParseAndSetDate(o.issueDate(), e::setCnicIssueDate);
+    }
+    if (e.getCnicExpiryDate() == null) {
+      tryParseAndSetDate(o.expiryDate(), e::setCnicExpiryDate);
+    }
+    if (StringUtils.hasText(o.address())
+        && (e.getPresentAddressLine1() == null || e.getPresentAddressLine1().isBlank())) {
+      e.setPresentAddressLine1(o.address().trim());
+    }
   }
 
   private void tryParseAndSetDate(String raw, Consumer<LocalDate> setter) {
