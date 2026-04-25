@@ -3,14 +3,20 @@ package com.bank.cebos.controller.portal;
 import com.bank.cebos.dto.portal.BatchUploadResponse;
 import com.bank.cebos.dto.portal.CorrectionUploadResponse;
 import com.bank.cebos.dto.portal.PortalBatchDetailResponse;
+import com.bank.cebos.dto.portal.PortalBatchEmployeeRowResponse;
 import com.bank.cebos.dto.portal.PortalBatchInviteDispatchResponse;
 import com.bank.cebos.dto.portal.PortalBatchListItemResponse;
+import com.bank.cebos.dto.portal.PortalEmployeeDetailResponse;
 import com.bank.cebos.entity.UploadBatch;
+import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.repository.UploadBatchRepository;
 import com.bank.cebos.security.CebosUserDetails;
 import com.bank.cebos.service.batch.BatchIngestService;
 import com.bank.cebos.service.batch.CorrectionIngestService;
 import com.bank.cebos.service.invite.InviteDispatchService;
+import com.bank.cebos.service.kyc.EmployeeKycImageService;
+import com.bank.cebos.service.kyc.KycImageKind;
+import com.bank.cebos.service.portal.PortalBatchEmployeeQueryService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
@@ -44,20 +50,33 @@ public class PortalBatchController {
       "hasRole('ADMIN') and @principalAccess.hasPrincipalKind(T(com.bank.cebos.enums.PrincipalKind).PORTAL)"
           + " and @principalAccess.portalUserOwnsUploadBatch(#batchRef)";
 
+  private static final String PORTAL_ADMIN_BATCH_IMAGE_SECURITY =
+      "hasRole('ADMIN') and @principalAccess.hasPrincipalKind(T(com.bank.cebos.enums.PrincipalKind).PORTAL)"
+          + " and @principalAccess.portalEmployeeInOwnedBatch(#batchRef, #employeeRef)";
+
   private final UploadBatchRepository uploadBatchRepository;
   private final BatchIngestService batchIngestService;
   private final CorrectionIngestService correctionIngestService;
   private final InviteDispatchService inviteDispatchService;
+  private final PortalBatchEmployeeQueryService portalBatchEmployeeQueryService;
+  private final EmployeeOnboardingRepository employeeOnboardingRepository;
+  private final EmployeeKycImageService employeeKycImageService;
 
   public PortalBatchController(
       UploadBatchRepository uploadBatchRepository,
       BatchIngestService batchIngestService,
       CorrectionIngestService correctionIngestService,
-      InviteDispatchService inviteDispatchService) {
+      InviteDispatchService inviteDispatchService,
+      PortalBatchEmployeeQueryService portalBatchEmployeeQueryService,
+      EmployeeOnboardingRepository employeeOnboardingRepository,
+      EmployeeKycImageService employeeKycImageService) {
     this.uploadBatchRepository = uploadBatchRepository;
     this.batchIngestService = batchIngestService;
     this.correctionIngestService = correctionIngestService;
     this.inviteDispatchService = inviteDispatchService;
+    this.portalBatchEmployeeQueryService = portalBatchEmployeeQueryService;
+    this.employeeOnboardingRepository = employeeOnboardingRepository;
+    this.employeeKycImageService = employeeKycImageService;
   }
 
   @GetMapping
@@ -86,6 +105,60 @@ public class PortalBatchController {
         .findByBatchReferenceAndCorporateClientId(batchRef, clientId)
         .map(this::toDetail)
         .map(ResponseEntity::ok)
+        .orElse(ResponseEntity.notFound().build());
+  }
+
+  @GetMapping("/{batchRef}/employees")
+  @PreAuthorize(
+      PORTAL_ROLE_AND_KIND_SECURITY + " and @principalAccess.portalUserOwnsUploadBatch(#batchRef)")
+  public ResponseEntity<Page<PortalBatchEmployeeRowResponse>> listBatchEmployees(
+      @AuthenticationPrincipal CebosUserDetails principal,
+      @PathVariable("batchRef") String batchRef,
+      Pageable pageable) {
+    Long clientId = principal.corporateClientId();
+    if (clientId == null) {
+      return ResponseEntity.ok(Page.empty(pageable));
+    }
+    return portalBatchEmployeeQueryService
+        .listEmployeesForBatch(batchRef, clientId, pageable)
+        .map(ResponseEntity::ok)
+        .orElse(ResponseEntity.notFound().build());
+  }
+
+  @GetMapping("/{batchRef}/employees/{employeeRef}")
+  @PreAuthorize(
+      PORTAL_ROLE_AND_KIND_SECURITY
+          + " and @principalAccess.portalEmployeeInOwnedBatch(#batchRef, #employeeRef)")
+  public ResponseEntity<PortalEmployeeDetailResponse> getBatchEmployeeDetail(
+      @AuthenticationPrincipal CebosUserDetails principal,
+      @PathVariable("batchRef") String batchRef,
+      @PathVariable("employeeRef") String employeeRef) {
+    Long clientId = principal.corporateClientId();
+    if (clientId == null) {
+      return ResponseEntity.notFound().build();
+    }
+    return portalBatchEmployeeQueryService
+        .getEmployeeDetail(batchRef, employeeRef, clientId)
+        .map(ResponseEntity::ok)
+        .orElse(ResponseEntity.notFound().build());
+  }
+
+  @GetMapping("/{batchRef}/employees/{employeeRef}/images/{kind}")
+  @PreAuthorize(PORTAL_ADMIN_BATCH_IMAGE_SECURITY)
+  public ResponseEntity<byte[]> getBatchEmployeeImage(
+      @PathVariable("batchRef") String batchRef,
+      @PathVariable("employeeRef") String employeeRef,
+      @PathVariable("kind") String kind) {
+    KycImageKind imageKind = KycImageKind.fromPathSegment(kind);
+    return employeeOnboardingRepository
+        .findByEmployeeRef(employeeRef)
+        .flatMap(e -> employeeKycImageService.readImage(e, imageKind))
+        .map(
+            bytes ->
+                ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .header("Cache-Control", "private, max-age=60")
+                    .body(bytes))
         .orElse(ResponseEntity.notFound().build());
   }
 

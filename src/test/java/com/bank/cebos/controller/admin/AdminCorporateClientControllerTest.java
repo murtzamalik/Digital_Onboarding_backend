@@ -148,7 +148,20 @@ class AdminCorporateClientControllerTest {
     Instant created = Instant.parse("2026-04-01T10:00:00Z");
     CorporateClientDetailResponse body =
         new CorporateClientDetailResponse(
-            3L, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "NEW-1", "New Co", "ACTIVE", created, created);
+            3L,
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "NEW-1",
+            "New Co",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "ACTIVE",
+            created,
+            created);
     when(adminCorporateClientWriteService.create(any(CreateCorporateClientRequest.class)))
         .thenReturn(body);
 
@@ -159,7 +172,8 @@ class AdminCorporateClientControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        new CreateCorporateClientRequest("NEW-1", "New Co"))))
+                        new CreateCorporateClientRequest(
+                            "NEW-1", "New Co", null, null, null, null, null, null, null))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(3))
         .andExpect(jsonPath("$.clientCode").value("NEW-1"));

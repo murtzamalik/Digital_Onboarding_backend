@@ -25,6 +25,27 @@ public class CorporateClient {
   @Column(name = "legal_name", nullable = false, length = 512)
   private String legalName;
 
+  @Column(name = "trade_name", length = 256)
+  private String tradeName;
+
+  @Column(name = "industry", length = 256)
+  private String industry;
+
+  @Column(name = "registered_address", length = 512)
+  private String registeredAddress;
+
+  @Column(name = "city", length = 128)
+  private String city;
+
+  @Column(name = "contact_phone", length = 64)
+  private String contactPhone;
+
+  @Column(name = "contact_email", length = 320)
+  private String contactEmail;
+
+  @Column(name = "company_registration_no", length = 128)
+  private String companyRegistrationNo;
+
   @Column(name = "status", nullable = false, length = 32)
   private String status;
 
@@ -52,6 +73,34 @@ public class CorporateClient {
     return legalName;
   }
 
+  public String getTradeName() {
+    return tradeName;
+  }
+
+  public String getIndustry() {
+    return industry;
+  }
+
+  public String getRegisteredAddress() {
+    return registeredAddress;
+  }
+
+  public String getCity() {
+    return city;
+  }
+
+  public String getContactPhone() {
+    return contactPhone;
+  }
+
+  public String getContactEmail() {
+    return contactEmail;
+  }
+
+  public String getCompanyRegistrationNo() {
+    return companyRegistrationNo;
+  }
+
   public String getStatus() {
     return status;
   }
@@ -74,6 +123,34 @@ public class CorporateClient {
 
   public void setLegalName(String legalName) {
     this.legalName = legalName;
+  }
+
+  public void setTradeName(String tradeName) {
+    this.tradeName = tradeName;
+  }
+
+  public void setIndustry(String industry) {
+    this.industry = industry;
+  }
+
+  public void setRegisteredAddress(String registeredAddress) {
+    this.registeredAddress = registeredAddress;
+  }
+
+  public void setCity(String city) {
+    this.city = city;
+  }
+
+  public void setContactPhone(String contactPhone) {
+    this.contactPhone = contactPhone;
+  }
+
+  public void setContactEmail(String contactEmail) {
+    this.contactEmail = contactEmail;
+  }
+
+  public void setCompanyRegistrationNo(String companyRegistrationNo) {
+    this.companyRegistrationNo = companyRegistrationNo;
   }
 
   public void setStatus(String status) {

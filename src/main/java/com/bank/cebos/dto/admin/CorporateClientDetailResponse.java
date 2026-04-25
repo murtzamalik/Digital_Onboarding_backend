@@ -7,6 +7,13 @@ public record CorporateClientDetailResponse(
     String publicId,
     String clientCode,
     String legalName,
+    String tradeName,
+    String industry,
+    String registeredAddress,
+    String city,
+    String contactPhone,
+    String contactEmail,
+    String companyRegistrationNo,
     String status,
     Instant createdAt,
     Instant updatedAt) {}

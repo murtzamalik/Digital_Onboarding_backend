@@ -20,6 +20,8 @@ public interface EmployeeOnboardingRepository extends JpaRepository<EmployeeOnbo
 
   List<EmployeeOnboarding> findByBatchId(Long batchId);
 
+  Page<EmployeeOnboarding> findByBatchId(Long batchId, Pageable pageable);
+
   List<EmployeeOnboarding> findByBatchIdAndStatus(Long batchId, OnboardingStatus status);
 
   long countByBatchId(Long batchId);

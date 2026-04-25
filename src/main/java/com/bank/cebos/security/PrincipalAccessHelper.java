@@ -3,6 +3,7 @@ package com.bank.cebos.security;
 import com.bank.cebos.enums.BankAdminRole;
 import com.bank.cebos.enums.PrincipalKind;
 import com.bank.cebos.enums.PortalRole;
+import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.repository.UploadBatchRepository;
 import java.util.Arrays;
 import java.util.Collection;
@@ -18,9 +19,13 @@ import org.springframework.stereotype.Component;
 public class PrincipalAccessHelper {
 
   private final UploadBatchRepository uploadBatchRepository;
+  private final EmployeeOnboardingRepository employeeOnboardingRepository;
 
-  public PrincipalAccessHelper(UploadBatchRepository uploadBatchRepository) {
+  public PrincipalAccessHelper(
+      UploadBatchRepository uploadBatchRepository,
+      EmployeeOnboardingRepository employeeOnboardingRepository) {
     this.uploadBatchRepository = uploadBatchRepository;
+    this.employeeOnboardingRepository = employeeOnboardingRepository;
   }
 
   public Optional<CebosUserDetails> getCurrentUserDetails() {
@@ -80,6 +85,40 @@ public class PrincipalAccessHelper {
     }
     return uploadBatchRepository.existsByBatchReferenceAndCorporateClientId(
         batchReference, corporateClientId);
+  }
+
+  /**
+   * Portal-only: batch belongs to client and employee exists in that batch (same corporate client).
+   */
+  public boolean portalEmployeeInOwnedBatch(String batchReference, String employeeRef) {
+    if (batchReference == null
+        || batchReference.isBlank()
+        || employeeRef == null
+        || employeeRef.isBlank()) {
+      return false;
+    }
+    if (!portalUserOwnsUploadBatch(batchReference)) {
+      return false;
+    }
+    Optional<CebosUserDetails> detailsOpt = getCurrentUserDetails();
+    if (detailsOpt.isEmpty()) {
+      return false;
+    }
+    Long corporateClientId = detailsOpt.get().corporateClientId();
+    if (corporateClientId == null) {
+      return false;
+    }
+    return uploadBatchRepository
+        .findByBatchReferenceAndCorporateClientId(batchReference, corporateClientId)
+        .flatMap(
+            batch ->
+                employeeOnboardingRepository
+                    .findByEmployeeRef(employeeRef)
+                    .filter(
+                        e ->
+                            batch.getId().equals(e.getBatchId())
+                                && corporateClientId.equals(e.getCorporateClientId())))
+        .isPresent();
   }
 
   private boolean hasRequiredRoleForKind(PrincipalKind expectedKind, Set<String> requiredRoles) {

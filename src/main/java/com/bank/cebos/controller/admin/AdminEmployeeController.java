@@ -1,16 +1,21 @@
 package com.bank.cebos.controller.admin;
 
+import com.bank.cebos.dto.admin.AdminEmployeeDetailResponse;
 import com.bank.cebos.dto.admin.AdminEmployeeSummaryResponse;
 import com.bank.cebos.dto.admin.AmlComplianceReasonRequest;
 import com.bank.cebos.enums.OnboardingStatus;
+import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.security.CorrelationIdFilter;
 import com.bank.cebos.security.CebosUserDetails;
 import com.bank.cebos.service.admin.AdminAmlComplianceService;
 import com.bank.cebos.service.admin.AdminEmployeeQueryService;
+import com.bank.cebos.service.kyc.EmployeeKycImageService;
+import com.bank.cebos.service.kyc.KycImageKind;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -41,12 +46,18 @@ public class AdminEmployeeController {
 
   private final AdminEmployeeQueryService adminEmployeeQueryService;
   private final AdminAmlComplianceService adminAmlComplianceService;
+  private final EmployeeOnboardingRepository employeeOnboardingRepository;
+  private final EmployeeKycImageService employeeKycImageService;
 
   public AdminEmployeeController(
       AdminEmployeeQueryService adminEmployeeQueryService,
-      AdminAmlComplianceService adminAmlComplianceService) {
+      AdminAmlComplianceService adminAmlComplianceService,
+      EmployeeOnboardingRepository employeeOnboardingRepository,
+      EmployeeKycImageService employeeKycImageService) {
     this.adminEmployeeQueryService = adminEmployeeQueryService;
     this.adminAmlComplianceService = adminAmlComplianceService;
+    this.employeeOnboardingRepository = employeeOnboardingRepository;
+    this.employeeKycImageService = employeeKycImageService;
   }
 
   @GetMapping
@@ -56,6 +67,33 @@ public class AdminEmployeeController {
       @RequestParam(name = "q", required = false) String q,
       Pageable pageable) {
     return ResponseEntity.ok(adminEmployeeQueryService.search(status, q, pageable));
+  }
+
+  @GetMapping("/{employeeRef}")
+  @PreAuthorize(BANK_ADMIN_SECURITY)
+  public ResponseEntity<AdminEmployeeDetailResponse> getEmployeeDetail(
+      @PathVariable("employeeRef") String employeeRef) {
+    return adminEmployeeQueryService
+        .findDetailByEmployeeRef(employeeRef)
+        .map(ResponseEntity::ok)
+        .orElse(ResponseEntity.notFound().build());
+  }
+
+  @GetMapping("/{employeeRef}/images/{kind}")
+  @PreAuthorize(BANK_ADMIN_SECURITY)
+  public ResponseEntity<byte[]> getEmployeeImage(
+      @PathVariable("employeeRef") String employeeRef, @PathVariable("kind") String kind) {
+    KycImageKind imageKind = KycImageKind.fromPathSegment(kind);
+    return employeeOnboardingRepository
+        .findByEmployeeRef(employeeRef)
+        .flatMap(e -> employeeKycImageService.readImage(e, imageKind))
+        .map(
+            bytes ->
+                ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .header("Cache-Control", "private, max-age=60")
+                    .body(bytes))
+        .orElse(ResponseEntity.notFound().build());
   }
 
   @PostMapping("/{employeeRef}/aml/clear")

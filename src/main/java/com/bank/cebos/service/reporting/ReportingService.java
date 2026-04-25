@@ -5,6 +5,7 @@ import com.bank.cebos.entity.UploadBatch;
 import com.bank.cebos.enums.OnboardingStatus;
 import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.repository.UploadBatchRepository;
+import com.bank.cebos.util.PiiMasking;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -64,9 +65,9 @@ public class ReportingService {
                 + ","
                 + csvField(e.getStatus() != null ? e.getStatus().name() : "")
                 + ","
-                + csvField(maskTail(e.getCnic(), 4))
+                + csvField(PiiMasking.maskTail(e.getCnic(), 4))
                 + ","
-                + csvField(maskTail(e.getMobile(), 4))
+                + csvField(PiiMasking.maskTail(e.getMobile(), 4))
                 + ","
                 + csvField(e.getFullName())
                 + "\n");
@@ -126,17 +127,6 @@ public class ReportingService {
       }
       w.flush();
     }
-  }
-
-  static String maskTail(String value, int visible) {
-    if (value == null || value.isBlank()) {
-      return "";
-    }
-    String t = value.trim();
-    if (t.length() <= visible) {
-      return "****";
-    }
-    return "*".repeat(t.length() - visible) + t.substring(t.length() - visible);
   }
 
   static String csvField(String s) {

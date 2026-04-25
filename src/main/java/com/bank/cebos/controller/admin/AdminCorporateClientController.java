@@ -82,6 +82,13 @@ public class AdminCorporateClientController {
         c.getPublicId(),
         c.getClientCode(),
         c.getLegalName(),
+        c.getTradeName(),
+        c.getIndustry(),
+        c.getRegisteredAddress(),
+        c.getCity(),
+        c.getContactPhone(),
+        c.getContactEmail(),
+        c.getCompanyRegistrationNo(),
         c.getStatus(),
         c.getCreatedAt(),
         c.getUpdatedAt());

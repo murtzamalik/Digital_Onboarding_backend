@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.bank.cebos.enums.BankAdminRole;
 import com.bank.cebos.enums.PrincipalKind;
 import com.bank.cebos.enums.PortalRole;
+import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.repository.UploadBatchRepository;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -24,11 +25,14 @@ class PrincipalAccessHelperTest {
 
   @Mock private UploadBatchRepository uploadBatchRepository;
 
+  @Mock private EmployeeOnboardingRepository employeeOnboardingRepository;
+
   private PrincipalAccessHelper principalAccessHelper;
 
   @BeforeEach
   void setUp() {
-    principalAccessHelper = new PrincipalAccessHelper(uploadBatchRepository);
+    principalAccessHelper =
+        new PrincipalAccessHelper(uploadBatchRepository, employeeOnboardingRepository);
   }
 
   @AfterEach

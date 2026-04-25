@@ -17,6 +17,7 @@ import com.bank.cebos.dto.mobile.QuizQuestionResponse;
 import com.bank.cebos.dto.mobile.QuizSubmitRequest;
 import com.bank.cebos.dto.mobile.QuizTemplateResponse;
 import com.bank.cebos.dto.mobile.ReviewSubmitRequest;
+import com.bank.cebos.entity.CorporateClient;
 import com.bank.cebos.entity.EmployeeOnboarding;
 import com.bank.cebos.enums.OnboardingStatus;
 import com.bank.cebos.integration.AmlIntegration;
@@ -122,11 +123,7 @@ public class MobileJourneyWorkflowService {
   @Transactional(readOnly = true)
   public MobileProfileResponse getProfile(long onboardingId) {
     EmployeeOnboarding e = employeeOnboardingService.getRequiredById(onboardingId);
-    String corporateName =
-        corporateClientRepository
-            .findById(e.getCorporateClientId())
-            .map(corporateClient -> corporateClient.getLegalName())
-            .orElse("—");
+    CorporateClient client = resolveCorporateClient(e.getCorporateClientId());
     return new MobileProfileResponse(
         e.getId(),
         e.getEmployeeRef(),
@@ -140,10 +137,33 @@ public class MobileJourneyWorkflowService {
         e.getCnicIssueDate() != null ? e.getCnicIssueDate().toString() : null,
         e.getCnicExpiryDate() != null ? e.getCnicExpiryDate().toString() : null,
         e.getPresentAddressLine1(),
-        corporateName,
+        dashIfBlank(client != null ? client.getLegalName() : null),
+        dashIfBlank(client != null ? client.getClientCode() : null),
+        dashIfBlank(client != null ? client.getTradeName() : null),
+        dashIfBlank(client != null ? client.getIndustry() : null),
+        dashIfBlank(client != null ? client.getRegisteredAddress() : null),
+        dashIfBlank(client != null ? client.getCity() : null),
+        dashIfBlank(client != null ? client.getContactPhone() : null),
+        dashIfBlank(client != null ? client.getContactEmail() : null),
+        dashIfBlank(client != null ? client.getCompanyRegistrationNo() : null),
         "Employee",
         "Salary",
         "Savings / Salary Account");
+  }
+
+  private CorporateClient resolveCorporateClient(Long corporateClientId) {
+    if (corporateClientId == null) {
+      return null;
+    }
+    return corporateClientRepository.findById(corporateClientId).orElse(null);
+  }
+
+  private static String dashIfBlank(String value) {
+    if (value == null) {
+      return "—";
+    }
+    String t = value.trim();
+    return t.isEmpty() ? "—" : t;
   }
 
   @Transactional

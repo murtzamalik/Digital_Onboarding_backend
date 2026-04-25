@@ -10,6 +10,7 @@ import com.bank.cebos.entity.UploadBatch;
 import com.bank.cebos.enums.OnboardingStatus;
 import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.repository.UploadBatchRepository;
+import com.bank.cebos.util.PiiMasking;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Constructor;
 import java.time.Instant;
@@ -30,8 +31,8 @@ class ReportingServiceTest {
 
   @Test
   void maskTailShowsLastDigitsOnly() {
-    assertThat(ReportingService.maskTail("11111-1111111-1", 4)).endsWith("11-1");
-    assertThat(ReportingService.maskTail("0300", 4)).isEqualTo("****");
+    assertThat(PiiMasking.maskTail("11111-1111111-1", 4)).endsWith("11-1");
+    assertThat(PiiMasking.maskTail("0300", 4)).isEqualTo("****");
   }
 
   @Test

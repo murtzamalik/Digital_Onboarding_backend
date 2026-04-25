@@ -33,6 +33,13 @@ public class AdminCorporateClientWriteService {
     c.setPublicId(UUID.randomUUID().toString());
     c.setClientCode(code);
     c.setLegalName(request.legalName().trim());
+    c.setTradeName(request.tradeName());
+    c.setIndustry(request.industry());
+    c.setRegisteredAddress(request.registeredAddress());
+    c.setCity(request.city());
+    c.setContactPhone(request.contactPhone());
+    c.setContactEmail(request.contactEmail());
+    c.setCompanyRegistrationNo(request.companyRegistrationNo());
     c.setStatus(ACTIVE);
     c.setCreatedAt(now);
     c.setUpdatedAt(now);
@@ -46,6 +53,13 @@ public class AdminCorporateClientWriteService {
         c.getPublicId(),
         c.getClientCode(),
         c.getLegalName(),
+        c.getTradeName(),
+        c.getIndustry(),
+        c.getRegisteredAddress(),
+        c.getCity(),
+        c.getContactPhone(),
+        c.getContactEmail(),
+        c.getCompanyRegistrationNo(),
         c.getStatus(),
         c.getCreatedAt(),
         c.getUpdatedAt());
