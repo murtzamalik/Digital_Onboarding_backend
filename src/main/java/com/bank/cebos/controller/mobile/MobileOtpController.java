@@ -13,6 +13,7 @@ import com.bank.cebos.service.auth.OtpService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,17 +42,38 @@ public class MobileOtpController {
 
   @PostMapping("/verify")
   public OtpVerifyResponse verify(@Valid @RequestBody OtpVerifyRequest request) {
-    boolean verified = otpService.verifyOtp(request.employeeOnboardingId(), request.otp());
-    if (!verified) {
-      return new OtpVerifyResponse(false, null, null);
+    try {
+      boolean verified = otpService.verifyOtp(request.employeeOnboardingId(), request.otp());
+      if (!verified) {
+        return new OtpVerifyResponse(
+            false,
+            null,
+            null,
+            otpService.getOtpStatus(request.employeeOnboardingId()),
+            "OTP verification failed");
+      }
+      var tokens = mobileAuthService.issueTokensForEmployeeId(request.employeeOnboardingId());
+      return new OtpVerifyResponse(
+          true,
+          tokens.accessToken(),
+          tokens.refreshToken(),
+          otpService.getOtpStatus(request.employeeOnboardingId()),
+          null);
+    } catch (BadCredentialsException ex) {
+      return new OtpVerifyResponse(
+          false,
+          null,
+          null,
+          otpService.getOtpStatus(request.employeeOnboardingId()),
+          ex.getMessage());
     }
-    var tokens = mobileAuthService.issueTokensForEmployeeId(request.employeeOnboardingId());
-    return new OtpVerifyResponse(true, tokens.accessToken(), tokens.refreshToken());
   }
 
   @PostMapping("/resend")
   public OtpResendResponse resend(@Valid @RequestBody OtpResendRequest request) {
-    return new OtpResendResponse(otpService.resendOtp(request.employeeOnboardingId()));
+    return new OtpResendResponse(
+        otpService.resendOtp(request.employeeOnboardingId()),
+        otpService.getOtpStatus(request.employeeOnboardingId()));
   }
 
   private void requireMobilePrincipal(CebosUserDetails principal, Long employeeOnboardingId) {

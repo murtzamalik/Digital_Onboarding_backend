@@ -1,3 +1,10 @@
 package com.bank.cebos.dto.mobile;
 
-public record MpinSetupResponse(boolean success, String message) {}
+import java.util.List;
+
+public record MpinSetupResponse(
+    boolean success,
+    String message,
+    String applicationReference,
+    String activationEta,
+    List<String> nextSteps) {}

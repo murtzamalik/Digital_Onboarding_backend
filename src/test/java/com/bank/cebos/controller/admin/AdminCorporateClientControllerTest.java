@@ -17,6 +17,7 @@ import com.bank.cebos.entity.CorporateClient;
 import com.bank.cebos.enums.BankAdminRole;
 import com.bank.cebos.enums.PrincipalKind;
 import com.bank.cebos.repository.CorporateClientRepository;
+import com.bank.cebos.repository.EmployeeOnboardingRepository;
 import com.bank.cebos.repository.UploadBatchRepository;
 import com.bank.cebos.security.CebosUserDetails;
 import com.bank.cebos.service.admin.AdminCorporateClientWriteService;
@@ -55,6 +56,8 @@ class AdminCorporateClientControllerTest {
   @MockBean private CorporateClientRepository corporateClientRepository;
 
   @MockBean private AdminCorporateClientWriteService adminCorporateClientWriteService;
+
+  @MockBean private EmployeeOnboardingRepository employeeOnboardingRepository;
 
   @MockBean private UploadBatchRepository uploadBatchRepository;
 

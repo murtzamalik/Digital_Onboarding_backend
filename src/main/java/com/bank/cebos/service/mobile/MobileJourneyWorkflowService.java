@@ -68,6 +68,7 @@ public class MobileJourneyWorkflowService {
   private static final String MOTHER_NAME_QUIZ_TEMPLATE_ID = "MOTHER_NAME_QUIZ";
   private static final String MOTHER_NAME_QUESTION_ID = "Q_MOTHER_NAME";
   private static final String MOTHER_NAME_QUESTION_TEXT = "What is your mother's name?";
+  private static final int QUIZ_OPTION_COUNT = 4;
   private static final List<String> MOTHER_NAME_DECOY_POOL =
       List.of(
           "Fatima Bibi",
@@ -346,7 +347,7 @@ public class MobileJourneyWorkflowService {
                     java.util.stream.Collectors.toList(),
                     list -> {
                       java.util.Collections.shuffle(list);
-                      return list.subList(0, Math.min(2, list.size()));
+                      return list.subList(0, Math.min(QUIZ_OPTION_COUNT - 1, list.size()));
                     }));
 
     List<String> options = new ArrayList<>(decoys);
@@ -502,7 +503,16 @@ public class MobileJourneyWorkflowService {
     String hash = new BCryptPasswordEncoder().encode(request.mpin());
     e.setMpinHash(hash);
     employeeOnboardingRepository.save(e);
-    return new MpinSetupResponse(true, "MPIN set successfully");
+    return new MpinSetupResponse(
+        true,
+        "MPIN set successfully",
+        e.getEmployeeRef(),
+        "1-2 business days",
+        List.of(
+            "UBANK verifies your KYC and AML details",
+            "You receive an SMS with account confirmation",
+            "Salary credits start in your next payroll cycle",
+            "Visit branch only if original CNIC verification is requested"));
   }
 
   private FormSchemaResponse loadFormSchema() {

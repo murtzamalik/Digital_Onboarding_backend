@@ -1,6 +1,7 @@
 package com.bank.cebos.service.auth;
 
 import com.bank.cebos.config.OtpProperties;
+import com.bank.cebos.dto.auth.OtpStatusResponse;
 import com.bank.cebos.entity.EmployeeOnboarding;
 import com.bank.cebos.entity.OtpSession;
 import com.bank.cebos.enums.OtpSessionStatus;
@@ -39,6 +40,7 @@ public class OtpService {
   private static final String MOBILE_CHANNEL = "MOBILE";
   private static final String MAX_WRONG_ATTEMPTS_KEY = "otp.max.wrong.attempts";
   private static final String MAX_RESENDS_KEY = "otp.max.resends";
+  private static final String RESEND_COOLDOWN_SECONDS_KEY = "otp.resend.cooldown.seconds";
 
   private final OtpSessionRepository otpSessionRepository;
   private final EmployeeOnboardingService employeeOnboardingService;
@@ -160,6 +162,29 @@ public class OtpService {
       throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "OTP resend limit exceeded");
     }
     return issueOtp(employeeOnboardingId, latest.getDestinationMasked());
+  }
+
+  @Transactional
+  public OtpStatusResponse getOtpStatus(Long employeeOnboardingId) {
+    OtpSession latest = latestSession(employeeOnboardingId);
+    int attemptsUsed = latest.getAttemptCount() == null ? 0 : latest.getAttemptCount();
+    int maxAttempts = latest.getMaxAttempts() == null ? otpProperties.maxAttempts() : latest.getMaxAttempts();
+    int attemptsRemaining = Math.max(0, maxAttempts - attemptsUsed);
+    boolean locked =
+        latest.getStatus() == OtpSessionStatus.LOCKED || attemptsRemaining == 0;
+    int lockoutRemainingSeconds =
+        locked ? Math.max(0, (int) Duration.between(Instant.now(), latest.getExpiresAt()).getSeconds()) : 0;
+    int resendCooldownSeconds = runtimeConfigService.getInt(RESEND_COOLDOWN_SECONDS_KEY, 30);
+    int resendAvailableInSeconds =
+        Math.max(0, resendCooldownSeconds - (int) Duration.between(latest.getCreatedAt(), Instant.now()).getSeconds());
+
+    return new OtpStatusResponse(
+        attemptsUsed,
+        maxAttempts,
+        attemptsRemaining,
+        resendAvailableInSeconds,
+        locked,
+        lockoutRemainingSeconds);
   }
 
   private OtpSession latestSession(Long employeeOnboardingId) {
