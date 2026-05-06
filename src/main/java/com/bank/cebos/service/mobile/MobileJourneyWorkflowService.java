@@ -65,6 +65,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class MobileJourneyWorkflowService {
 
   private static final Logger log = LoggerFactory.getLogger(MobileJourneyWorkflowService.class);
+  private static final DateTimeFormatter MOBILE_DATE_FORMATTER =
+      DateTimeFormatter.ofPattern("dd-MM-yyyy");
   private static final String MOTHER_NAME_QUIZ_TEMPLATE_ID = "MOTHER_NAME_QUIZ";
   private static final String MOTHER_NAME_QUESTION_ID = "Q_MOTHER_NAME";
   private static final String MOTHER_NAME_QUESTION_TEXT = "What is your mother's name?";
@@ -134,9 +136,9 @@ public class MobileJourneyWorkflowService {
         e.getCnic(),
         e.getMobile(),
         e.getGender(),
-        e.getDateOfBirth() != null ? e.getDateOfBirth().toString() : null,
-        e.getCnicIssueDate() != null ? e.getCnicIssueDate().toString() : null,
-        e.getCnicExpiryDate() != null ? e.getCnicExpiryDate().toString() : null,
+        formatMobileDate(e.getDateOfBirth()),
+        formatMobileDate(e.getCnicIssueDate()),
+        formatMobileDate(e.getCnicExpiryDate()),
         e.getPresentAddressLine1(),
         dashIfBlank(client != null ? client.getLegalName() : null),
         dashIfBlank(client != null ? client.getClientCode() : null),
@@ -165,6 +167,10 @@ public class MobileJourneyWorkflowService {
     }
     String t = value.trim();
     return t.isEmpty() ? "—" : t;
+  }
+
+  private static String formatMobileDate(LocalDate date) {
+    return date == null ? null : date.format(MOBILE_DATE_FORMATTER);
   }
 
   @Transactional
@@ -604,7 +610,8 @@ public class MobileJourneyWorkflowService {
     if (raw == null || raw.isBlank()) {
       return;
     }
-    for (String pattern : List.of("dd/MM/yyyy", "yyyy-MM-dd", "d/M/yyyy", "MM/dd/yyyy")) {
+    for (String pattern :
+        List.of("dd/MM/yyyy", "dd-MM-yyyy", "yyyy-MM-dd", "d/M/yyyy", "d-M-yyyy", "MM/dd/yyyy")) {
       try {
         setter.accept(LocalDate.parse(raw.trim(), DateTimeFormatter.ofPattern(pattern)));
         return;

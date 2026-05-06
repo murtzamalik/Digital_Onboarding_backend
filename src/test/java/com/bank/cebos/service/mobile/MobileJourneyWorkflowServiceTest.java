@@ -33,6 +33,7 @@ import com.bank.cebos.service.onboarding.EmployeeOnboardingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bank.cebos.dto.mobile.QuizAnswerRequest;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -182,6 +183,60 @@ class MobileJourneyWorkflowServiceTest {
     service.submitReview(20L, new ReviewSubmitRequest("SAVINGS", "PKR"));
 
     assertThat(e.getStatus()).isEqualTo(OnboardingStatus.ACCOUNT_OPENED);
+  }
+
+  @Test
+  void submitCnicFrontParsesDashSeparatedDates() throws Exception {
+    EmployeeOnboarding e = employee(30L, OnboardingStatus.OTP_VERIFIED);
+    when(employeeOnboardingService.getRequiredById(30L)).thenReturn(e);
+    doAnswer(
+            inv -> {
+              EmployeeOnboarding target = inv.getArgument(0);
+              OnboardingStatus next = inv.getArgument(1);
+              target.setStatus(next);
+              return null;
+            })
+        .when(employeeOnboardingService)
+        .transition(any(EmployeeOnboarding.class), any(OnboardingStatus.class), any(), any());
+    when(bbsKycClient.extractPakistaniIdCard(any()))
+        .thenReturn(
+            new ObjectMapper()
+                .readTree(
+                    """
+                    {
+                      "frontSide": {
+                        "english": {
+                          "name": "Date Parse Test",
+                          "identity_number": "35202-1234567-1",
+                          "date_of_birth": "09-07-1996",
+                          "date_of_issue": "31-07-2023",
+                          "date_of_expiry": "31-07-2033"
+                        }
+                      }
+                    }
+                    """));
+
+    service.submitCnicFront(30L, new CnicCaptureRequest("QUJDRA=="));
+
+    assertThat(e.getDateOfBirth()).isEqualTo(LocalDate.of(1996, 7, 9));
+    assertThat(e.getCnicIssueDate()).isEqualTo(LocalDate.of(2023, 7, 31));
+    assertThat(e.getCnicExpiryDate()).isEqualTo(LocalDate.of(2033, 7, 31));
+  }
+
+  @Test
+  void getProfileReturnsMobileDatesAsDayMonthYear() {
+    EmployeeOnboarding e = employee(31L, OnboardingStatus.FORM_PENDING);
+    e.setDateOfBirth(LocalDate.of(1996, 7, 9));
+    e.setCnicIssueDate(LocalDate.of(2023, 7, 31));
+    e.setCnicExpiryDate(LocalDate.of(2033, 7, 31));
+    when(employeeOnboardingService.getRequiredById(31L)).thenReturn(e);
+    when(corporateClientRepository.findById(1L)).thenReturn(java.util.Optional.empty());
+
+    var profile = service.getProfile(31L);
+
+    assertThat(profile.dateOfBirth()).isEqualTo("09-07-1996");
+    assertThat(profile.cnicIssueDate()).isEqualTo("31-07-2023");
+    assertThat(profile.cnicExpiryDate()).isEqualTo("31-07-2033");
   }
 
   private static EmployeeOnboarding employee(long id, OnboardingStatus status) {
